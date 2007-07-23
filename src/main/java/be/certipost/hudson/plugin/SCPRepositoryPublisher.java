@@ -33,7 +33,7 @@ import com.jcraft.jsch.SftpException;
 public class SCPRepositoryPublisher extends Publisher {
 
 	/**
-	 * Name of the java.net project to post a file to.
+	 * Name of the scp site to post a file to.
 	 */
 	private String siteName;
 
