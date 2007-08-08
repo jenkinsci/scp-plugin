@@ -5,16 +5,16 @@
       description="SCP sites that projects will want to connect">
       <f:repeatable var="site" items="${descriptor.sites}">
         <table width="100%">
-          <f:entry title="hostname" help="/plugin/repository_upload/help-hostname.html">
+          <f:entry title="hostname" help="/plugin/scp/help-hostname.html">
             <f:textbox name="scp.hostname" value="${site.hostname}"/>
           </f:entry>
-          <f:entry title="Port" help="/plugin/repository_upload/help-port.html">
+          <f:entry title="Port" help="/plugin/scp/help-port.html">
             <f:textbox name="scp.port" value="${site.port}"/>
           </f:entry>
-          <f:entry title="Root Repository Path" help="/plugin/repository_upload/help-rootpath.html">
+          <f:entry title="Root Repository Path" help="/plugin/scp/help-rootpath.html">
             <f:textbox name="scp.rootRepositoryPath" value="${site.rootRepositoryPath}"/>
           </f:entry>
-          <f:entry title="User Name" help="/plugin/repository_upload/help-login.html">
+          <f:entry title="User Name" help="/plugin/scp/help-login.html">
             <f:textbox name="scp.username" value="${site.username}"
 				checkMethod="post"
 				checkUrl="'${rootURL}/publisher/SCPRepositoryPublisher/loginCheck?hostname='+escape(Form.findMatchingInput(this,'scp.hostname').value)+'&amp;port='+escape(Form.findMatchingInput(this,'scp.port').value)+'&amp;user='+escape(this.value)+'&amp;pass='+escape(Form.findMatchingInput(this,'scp.password').value)"

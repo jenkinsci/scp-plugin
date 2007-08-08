@@ -150,7 +150,7 @@ public class SCPRepositoryPublisher extends Publisher {
 		}
 
 		public String getHelpFile() {
-			return "/plugin/repository_upload/help.html";
+			return "/plugin/scp/help.html";
 		}
 
 		public Publisher newInstance(StaplerRequest req) {
