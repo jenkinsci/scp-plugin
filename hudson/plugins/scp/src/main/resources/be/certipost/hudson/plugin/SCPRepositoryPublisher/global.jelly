@@ -1,0 +1,40 @@
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+  <!-- nothing to configure -->
+  <f:section title="SCP repository hosts">
+    <f:entry title="SCP sites"
+      description="SCP sites that projects will want to connect">
+      <f:repeatable var="site" items="${descriptor.sites}">
+        <table width="100%">
+          <f:entry title="hostname" help="/plugin/scp/help-hostname.html">
+            <f:textbox name="scp.hostname" value="${site.hostname}"/>
+          </f:entry>
+          <f:entry title="Port" help="/plugin/scp/help-port.html">
+            <f:textbox name="scp.port" value="${site.port}"/>
+          </f:entry>
+          <f:entry title="Root Repository Path" help="/plugin/scp/help-rootpath.html">
+            <f:textbox name="scp.rootRepositoryPath" value="${site.rootRepositoryPath}"/>
+          </f:entry>
+          <f:entry title="User Name" help="/plugin/scp/help-login.html">
+            <f:textbox name="scp.username" value="${site.username}"
+				checkMethod="post"
+				checkUrl="'${rootURL}/publisher/SCPRepositoryPublisher/loginCheck?hostname='+escape(Form.findMatchingInput(this,'scp.hostname').value)+'&amp;port='+escape(Form.findMatchingInput(this,'scp.port').value)+'&amp;user='+escape(this.value)+'&amp;pass='+escape(Form.findMatchingInput(this,'scp.password').value)"
+			/>
+          </f:entry>
+          <f:entry title="Password">
+            <input class="setting-input" name="scp.password"
+                   type="password" value="${site.password}"
+				   onchange="Form.findMatchingInput(this,'scp.username').onchange()"
+                    />
+          </f:entry>
+          <f:entry title="">
+            <div align="right">
+              <f:repeatableDeleteButton />
+            </div>
+          </f:entry>
+        </table>
+      </f:repeatable>
+    </f:entry>
+  </f:section>
+
+
+</j:jelly>
