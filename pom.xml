@@ -9,6 +9,10 @@
   
   <artifactId>scp</artifactId>
   <packaging>hpi</packaging>
-  <version>1.1-SNAPSHOT</version>
+  <version>1.1</version>
   <name>Hudson SCP publisher plugin</name>
+
+  <scm>
+    <tag>scp-1_1</tag>
+  </scm>
 </project>
