@@ -178,7 +178,7 @@ public class SCPSite {
 				try{
 					dirstat=channel.stat(curdir+"/"+pathnames[i]);
 				}catch(SftpException e){
-					if(e.message.indexOf("No such file") == -1){
+					if(e.getMessage().indexOf("No such file") == -1){
 						throw e;
 					}
 				}
