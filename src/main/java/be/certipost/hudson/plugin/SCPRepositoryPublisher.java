@@ -102,7 +102,7 @@ public class SCPRepositoryPublisher extends Publisher {
 					scpsite.upload(folderPath,src[0],envVars,listener.getLogger());
 				} else {
 					 for( FilePath s : src ){
-						 listener.getLogger().println("remote folderPath " + folderPath+",local file:"+src[0].getName());
+						 listener.getLogger().println("remote folderPath " + folderPath+",local file:"+s.getName());
 						 scpsite.upload(folderPath, s, envVars,listener.getLogger());
 					 }
 				}
