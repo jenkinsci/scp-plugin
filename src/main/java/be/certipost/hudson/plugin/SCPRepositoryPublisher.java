@@ -82,7 +82,12 @@ public class SCPRepositoryPublisher extends Publisher {
 		SCPSite scpsite = null;
 		try {
 			scpsite=getSite();
-			listener.getLogger().println("Connecting to " + scpsite.getHostname());
+            if(scpsite==null) {
+                listener.getLogger().println("No SCP site is configured. This is likely a configuration problem.");
+                build.setResult(Result.UNSTABLE);
+                return true;
+            }
+            listener.getLogger().println("Connecting to " + scpsite.getHostname());
 			scpsite.createSession();
 			
 
