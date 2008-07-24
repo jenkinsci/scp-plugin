@@ -98,7 +98,7 @@ public class SCPRepositoryPublisher extends Publisher {
                 FilePath ws = build.getProject().getWorkspace();
                 FilePath[] src = ws.list(expanded);
                 if (src.length == 0) {
-                    // try 'expanded' as a full path
+                    // try to do error diagnostics
                     listener.getLogger().println("No file(s) found: "+ expanded);
                     String error = ws.validateAntFileMask(expanded);
                     if(error!=null)
