@@ -72,66 +72,70 @@ public class SCPRepositoryPublisher extends Publisher {
 		return null;
 	}
 
-	public boolean perform(Build build, Launcher launcher,
-			BuildListener listener) throws InterruptedException {
-		if (build.getResult() == Result.FAILURE) {
-			// build failed. don't post
-			return true;
-		}
-		
-		SCPSite scpsite = null;
-		try {
-			scpsite=getSite();
-            if(scpsite==null) {
+    public boolean perform(Build build, Launcher launcher,
+                           BuildListener listener) throws InterruptedException {
+        if (build.getResult() == Result.FAILURE) {
+            // build failed. don't post
+            return true;
+        }
+
+        SCPSite scpsite = null;
+        try {
+            scpsite = getSite();
+            if (scpsite == null) {
                 listener.getLogger().println("No SCP site is configured. This is likely a configuration problem.");
                 build.setResult(Result.UNSTABLE);
                 return true;
             }
             listener.getLogger().println("Connecting to " + scpsite.getHostname());
-			scpsite.createSession();
-			
+            scpsite.createSession();
 
-			Map<String, String> envVars = build.getEnvVars();
 
-			for (Entry e : entries) {
-				String expanded = Util.replaceMacro(e.sourceFile, envVars);
-				FilePath[] src = build.getProject().getWorkspace().list(
-						expanded);
-				String folderPath = Util.replaceMacro(e.filePath, envVars);
-				if (src.length == 0)
-					listener.getLogger().println("No file(s) found: "
-							+ expanded);
+            Map<String, String> envVars = build.getEnvVars();
 
-				if (src.length == 1) {
-					listener.getLogger().println("remote folderPath " + folderPath+",local file:"+src[0].getName());
-					scpsite.upload(folderPath,src[0],envVars,listener.getLogger());
-				} else {
-					 for( FilePath s : src ){
-						 listener.getLogger().println("remote folderPath " + folderPath+",local file:"+s.getName());
-						 scpsite.upload(folderPath, s, envVars,listener.getLogger());
-					 }
-				}
-			}
-		} catch (IOException e) {
-			e.printStackTrace(listener.error("Failed to upload files"));
-			build.setResult(Result.UNSTABLE);
-		} catch (JSchException e) {
-			e.printStackTrace(listener.error("Failed to upload files"));
-			build.setResult(Result.UNSTABLE);
-		} catch (SftpException e) {
-			e.printStackTrace(listener.error("Failed to upload files"));
-			build.setResult(Result.UNSTABLE);
-		}finally{
-			if(scpsite !=null){
-				scpsite.closeSession();
-			}
-			
-		}
+            for (Entry e : entries) {
+                String expanded = Util.replaceMacro(e.sourceFile, envVars);
+                FilePath ws = build.getProject().getWorkspace();
+                FilePath[] src = ws.list(expanded);
+                if (src.length == 0) {
+                    // try 'expanded' as a full path
+                    listener.getLogger().println("No file(s) found: "+ expanded);
+                    String error = ws.validateAntFileMask(expanded);
+                    if(error!=null)
+                        listener.getLogger().println(error);
+                }
+                String folderPath = Util.replaceMacro(e.filePath, envVars);
 
-		return true;
-	}
+                if (src.length == 1) {
+                    listener.getLogger().println("remote folderPath " + folderPath + ",local file:" + src[0].getName());
+                    scpsite.upload(folderPath, src[0], envVars, listener.getLogger());
+                } else {
+                    for (FilePath s : src) {
+                        listener.getLogger().println("remote folderPath " + folderPath + ",local file:" + s.getName());
+                        scpsite.upload(folderPath, s, envVars, listener.getLogger());
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace(listener.error("Failed to upload files"));
+            build.setResult(Result.UNSTABLE);
+        } catch (JSchException e) {
+            e.printStackTrace(listener.error("Failed to upload files"));
+            build.setResult(Result.UNSTABLE);
+        } catch (SftpException e) {
+            e.printStackTrace(listener.error("Failed to upload files"));
+            build.setResult(Result.UNSTABLE);
+        } finally {
+            if (scpsite != null) {
+                scpsite.closeSession();
+            }
 
-	public Descriptor<Publisher> getDescriptor() {
+        }
+
+        return true;
+    }
+
+    public Descriptor<Publisher> getDescriptor() {
 		return DESCRIPTOR;
 	}
 
