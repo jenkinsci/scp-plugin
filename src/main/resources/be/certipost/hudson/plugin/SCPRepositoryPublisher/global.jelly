@@ -5,7 +5,7 @@
       description="SCP sites that projects will want to connect">
       <f:repeatable var="site" items="${descriptor.sites}">
         <table width="100%">
-          <f:entry title="hostname" help="/plugin/scp/help-hostname.html">
+          <f:entry title="Hostname" help="/plugin/scp/help-hostname.html">
             <f:textbox name="scp.hostname" value="${site.hostname}"/>
           </f:entry>
           <f:entry title="Port" help="/plugin/scp/help-port.html">
@@ -17,15 +17,22 @@
           <f:entry title="User Name" help="/plugin/scp/help-login.html">
             <f:textbox name="scp.username" value="${site.username}"
 				checkMethod="post"
-				checkUrl="'${rootURL}/publisher/SCPRepositoryPublisher/loginCheck?hostname='+escape(Form.findMatchingInput(this,'scp.hostname').value)+'&amp;port='+escape(Form.findMatchingInput(this,'scp.port').value)+'&amp;user='+escape(this.value)+'&amp;pass='+escape(Form.findMatchingInput(this,'scp.password').value)"
+				checkUrl="'${rootURL}/publisher/SCPRepositoryPublisher/loginCheck?hostname='+escape(Form.findMatchingInput(this,'scp.hostname').value)+'&amp;port='+escape(Form.findMatchingInput(this,'scp.port').value)+'&amp;user='+escape(this.value)+'&amp;pass='+escape(Form.findMatchingInput(this,'scp.password').value)+'&amp;keyfile='+escape(Form.findMatchingInput(this,'scp.keyfile').value)"
 			/>
           </f:entry>
-          <f:entry title="Password">
+          <f:entry title="Password/Passphrase" help="/plugin/scp/help-password.html">
             <input class="setting-input" name="scp.password"
                    type="password" value="${site.password}"
-				   onchange="Form.findMatchingInput(this,'scp.username').onchange()"
+				   onchange="Form.findMatchingInput(this,'scp.username').onchange()"				   
                     />
           </f:entry>
+          
+          <f:entry title="Keyfile" help="/plugin/scp/help-keyfile.html">
+          <f:textbox class="setting-input" name="scp.keyfile"
+                   value="${site.keyfile}"
+                   checkUrl="'${rootURL}/publisher/SCPRepositoryPublisher/keyfileCheck?keyfile='+escape(this.value)"/>                   
+          </f:entry>
+          
           <f:entry title="">
             <div align="right">
               <f:repeatableDeleteButton />

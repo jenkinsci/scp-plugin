@@ -11,14 +11,20 @@ import hudson.tasks.Publisher;
 import hudson.util.CopyOnWriteList;
 import hudson.util.FormFieldValidator;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.servlet.ServletException;
 
+
+import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 
@@ -30,13 +36,14 @@ import com.jcraft.jsch.SftpException;
  * @author Ramil Israfilov
  *
  */
-public class SCPRepositoryPublisher extends Publisher {
+public final class SCPRepositoryPublisher extends Publisher {
 
 	/**
 	 * Name of the scp site to post a file to.
 	 */
 	private String siteName;
-
+	public static final Logger LOGGER = Logger.getLogger(SCPRepositoryPublisher.class
+			.getName());
 
 	private final List<Entry> entries = new ArrayList<Entry>();
 
@@ -83,11 +90,11 @@ public class SCPRepositoryPublisher extends Publisher {
         try {
             scpsite = getSite();
             if (scpsite == null) {
-                listener.getLogger().println("No SCP site is configured. This is likely a configuration problem.");
+                log(listener.getLogger(),"No SCP site is configured. This is likely a configuration problem.");
                 build.setResult(Result.UNSTABLE);
                 return true;
             }
-            listener.getLogger().println("Connecting to " + scpsite.getHostname());
+            log(listener.getLogger(),"Connecting to " + scpsite.getHostname());
             scpsite.createSession();
 
 
@@ -99,19 +106,19 @@ public class SCPRepositoryPublisher extends Publisher {
                 FilePath[] src = ws.list(expanded);
                 if (src.length == 0) {
                     // try to do error diagnostics
-                    listener.getLogger().println("No file(s) found: "+ expanded);
+                    log(listener.getLogger(),("No file(s) found: "+ expanded));
                     String error = ws.validateAntFileMask(expanded);
                     if(error!=null)
-                        listener.getLogger().println(error);
+                        log(listener.getLogger(),error);
                 }
                 String folderPath = Util.replaceMacro(e.filePath, envVars);
 
                 if (src.length == 1) {
-                    listener.getLogger().println("remote folderPath " + folderPath + ",local file:" + src[0].getName());
+                    log(listener.getLogger(),"remote folderPath " + folderPath + ",local file:" + src[0].getName());
                     scpsite.upload(folderPath, src[0], envVars, listener.getLogger());
                 } else {
                     for (FilePath s : src) {
-                        listener.getLogger().println("remote folderPath " + folderPath + ",local file:" + s.getName());
+                    	log(listener.getLogger(),"remote folderPath " + folderPath + ",local file:" + s.getName());
                         scpsite.upload(folderPath, s, envVars, listener.getLogger());
                     }
                 }
@@ -157,6 +164,11 @@ public class SCPRepositoryPublisher extends Publisher {
 		public String getDisplayName() {
 			return "Publish artifacts to SCP Repository";
 		}
+		
+		public String getShortName()
+		{
+			return "[SCP] ";
+		}
 
 		public String getHelpFile() {
 			return "/plugin/scp/help.html";
@@ -186,6 +198,25 @@ public class SCPRepositoryPublisher extends Publisher {
 			return true;
 		}
 		
+		public void doKeyfileCheck(final StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException
+		{
+			new FormFieldValidator(req,rsp,false)
+			{
+				protected void check() throws IOException, ServletException {
+					String keyfile = Util.fixEmpty(request.getParameter("keyfile"));
+					if (keyfile!=null)
+					{
+						File f = new File(keyfile);
+						if (!f.isFile())
+						{
+							error("keyfile does not exits");
+						}
+					}
+					 
+				}
+			}.process();
+		}
+		
 		public void doLoginCheck(final StaplerRequest req, StaplerResponse rsp)
 				throws IOException, ServletException {
 			new FormFieldValidator(req, rsp, false) {
@@ -199,17 +230,19 @@ public class SCPRepositoryPublisher extends Publisher {
 					SCPSite site = new SCPSite(hostname, request
 							.getParameter("port"),
 							request.getParameter("user"), request
-									.getParameter("pass"));
+									.getParameter("pass"),request.getParameter("keyfile"));
 					try {
 						try {
 							site.createSession();
 							site.closeSession();
 						} catch (JSchException e) {
+							LOGGER.log(Level.SEVERE, e.getMessage());
 							throw new IOException("Can't connect to server");
 						}
 						
 						ok();
 					} catch (IOException e) {
+						LOGGER.log(Level.SEVERE, e.getMessage());
 						error(e.getMessage());
 
 					}
@@ -228,4 +261,8 @@ public class SCPRepositoryPublisher extends Publisher {
 		this.siteName = siteName;
 	};
 
+	protected void log(final PrintStream logger, final String message)
+	{
+		logger.println(StringUtils.defaultString(DESCRIPTOR.getShortName()) + message);
+	}
 }
