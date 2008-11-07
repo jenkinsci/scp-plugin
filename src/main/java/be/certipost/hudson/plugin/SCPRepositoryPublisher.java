@@ -3,6 +3,7 @@ package be.certipost.hudson.plugin;
 import hudson.FilePath;
 import hudson.Launcher;
 import hudson.Util;
+import hudson.model.AbstractBuild;
 import hudson.model.Build;
 import hudson.model.BuildListener;
 import hudson.model.Descriptor;
@@ -79,8 +80,10 @@ public final class SCPRepositoryPublisher extends Publisher {
 		return null;
 	}
 
-    public boolean perform(Build build, Launcher launcher,
-                           BuildListener listener) throws InterruptedException {
+    @Override
+	public boolean perform(AbstractBuild<?, ?> build, Launcher launcher,
+			BuildListener listener) throws InterruptedException, IOException {
+
         if (build.getResult() == Result.FAILURE) {
             // build failed. don't post
             return true;
