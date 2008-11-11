@@ -134,7 +134,7 @@ public class SCPSite {
 		jsch = new JSch();
 
 		session = jsch.getSession(username, hostname, port);
-		if (this.keyfile != null) {
+		if (this.keyfile != null && this.keyfile.length()>0) {
 			jsch.addIdentity(this.keyfile, this.password);
 		} else {
 			session.setPassword(password);
