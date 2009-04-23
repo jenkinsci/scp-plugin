@@ -11,7 +11,7 @@
   <packaging>hpi</packaging>
   <version>1.5.3-SNAPSHOT</version>
   <name>Hudson SCP publisher plugin</name>
-  <url>http://hudson.gotdns.com/wiki/display/HUDSON/SCP+plugin</url>
+  <url>http://wiki.hudson-ci.org/display/HUDSON/SCP+plugin</url>
   
   <dependencies>
     <dependency>
