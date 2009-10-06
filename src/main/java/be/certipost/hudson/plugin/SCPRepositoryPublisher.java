@@ -1,16 +1,19 @@
 package be.certipost.hudson.plugin;
 
+import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
 import hudson.Util;
 import hudson.model.AbstractBuild;
-import hudson.model.Build;
+import hudson.model.AbstractProject;
 import hudson.model.BuildListener;
-import hudson.model.Descriptor;
 import hudson.model.Result;
+import hudson.tasks.BuildStepDescriptor;
+import hudson.tasks.BuildStepMonitor;
+import hudson.tasks.Notifier;
 import hudson.tasks.Publisher;
 import hudson.util.CopyOnWriteList;
-import hudson.util.FormFieldValidator;
+import hudson.util.FormValidation;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,12 +25,10 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.servlet.ServletException;
-
-
+import net.sf.json.JSONObject;
 import org.apache.commons.lang.StringUtils;
+import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
-import org.kohsuke.stapler.StaplerResponse;
 
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.SftpException;
@@ -37,7 +38,7 @@ import com.jcraft.jsch.SftpException;
  * @author Ramil Israfilov
  *
  */
-public final class SCPRepositoryPublisher extends Publisher {
+public final class SCPRepositoryPublisher extends Notifier {
 
 	/**
 	 * Name of the scp site to post a file to.
@@ -80,6 +81,10 @@ public final class SCPRepositoryPublisher extends Publisher {
 		return null;
 	}
 
+    public BuildStepMonitor getRequiredMonitorService() {
+        return BuildStepMonitor.BUILD;
+    }
+
     @Override
 	public boolean perform(AbstractBuild<?, ?> build, Launcher launcher,
 			BuildListener listener) throws InterruptedException, IOException {
@@ -101,11 +106,11 @@ public final class SCPRepositoryPublisher extends Publisher {
             scpsite.createSession();
 
 
-            Map<String, String> envVars = build.getEnvVars();
+            Map<String, String> envVars = build.getEnvironment(listener);
 
             for (Entry e : entries) {
                 String expanded = Util.replaceMacro(e.sourceFile, envVars);
-                FilePath ws = build.getProject().getWorkspace();
+                FilePath ws = build.getWorkspace();
                 FilePath[] src = ws.list(expanded);
                 if (src.length == 0) {
                     // try to do error diagnostics
@@ -145,13 +150,15 @@ public final class SCPRepositoryPublisher extends Publisher {
         return true;
     }
 
-    public Descriptor<Publisher> getDescriptor() {
+    @Override
+    public BuildStepDescriptor<Publisher> getDescriptor() {
 		return DESCRIPTOR;
 	}
 
-	public static final DescriptorImpl DESCRIPTOR = new DescriptorImpl();
+    @Extension
+    public static final DescriptorImpl DESCRIPTOR = new DescriptorImpl();
 	
-	public static final class DescriptorImpl extends Descriptor<Publisher>{
+	public static final class DescriptorImpl extends BuildStepDescriptor<Publisher>{
 		
 		public DescriptorImpl(){
 			super(SCPRepositoryPublisher.class);
@@ -173,11 +180,18 @@ public final class SCPRepositoryPublisher extends Publisher {
 			return "[SCP] ";
 		}
 
+		@Override
 		public String getHelpFile() {
 			return "/plugin/scp/help.html";
 		}
 
-		public Publisher newInstance(StaplerRequest req) {
+		@Override
+		public boolean isApplicable(Class<? extends AbstractProject> jobType) {
+		    return true;
+		}
+
+		@Override
+		public Publisher newInstance(StaplerRequest req, JSONObject formData) {
 			SCPRepositoryPublisher pub = new SCPRepositoryPublisher();
 			req.bindParameters(pub, "scp.");
 			pub.getEntries().addAll(
@@ -195,63 +209,48 @@ public final class SCPRepositoryPublisher extends Publisher {
 			return sites.toArray(new SCPSite[size]);
 		}
 
-		public boolean configure(StaplerRequest req) {
+		@Override
+		public boolean configure(StaplerRequest req, JSONObject formData) {
 			sites.replaceBy(req.bindParametersToList(SCPSite.class, "scp."));
 			save();
 			return true;
 		}
 		
-		public void doKeyfileCheck(final StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException
-		{
-			new FormFieldValidator(req,rsp,false)
+		public FormValidation doKeyfileCheck(@QueryParameter String keyfile) {
+			keyfile = Util.fixEmpty(keyfile);
+			if (keyfile!=null)
 			{
-				protected void check() throws IOException, ServletException {
-					String keyfile = Util.fixEmpty(request.getParameter("keyfile"));
-					if (keyfile!=null)
-					{
-						File f = new File(keyfile);
-						if (!f.isFile())
-						{
-							error("keyfile does not exits");
-						}
-					}
-					 
+				File f = new File(keyfile);
+				if (!f.isFile())
+				{
+					return FormValidation.error("keyfile does not exist");
 				}
-			}.process();
+			}
+					 
+			return FormValidation.ok();
 		}
 		
-		public void doLoginCheck(final StaplerRequest req, StaplerResponse rsp)
-				throws IOException, ServletException {
-			new FormFieldValidator(req, rsp, false) {
-				protected void check() throws IOException, ServletException {
-					String hostname = Util.fixEmpty(request
-							.getParameter("hostname"));
-					if (hostname == null) {// hosts is not entered yet
-						ok();
-						return;
-					}
-					SCPSite site = new SCPSite(hostname, request
-							.getParameter("port"),
-							request.getParameter("user"), request
-									.getParameter("pass"),request.getParameter("keyfile"));
-					try {
-						try {
-							site.createSession();
-							site.closeSession();
-						} catch (JSchException e) {
-							LOGGER.log(Level.SEVERE, e.getMessage());
-							throw new IOException("Can't connect to server");
-						}
-						
-						ok();
-					} catch (IOException e) {
-						LOGGER.log(Level.SEVERE, e.getMessage());
-						error(e.getMessage());
-
-					}
+		public FormValidation doLoginCheck(StaplerRequest request) {
+			String hostname = Util.fixEmpty(request.getParameter("hostname"));
+			if (hostname == null) {// hosts is not entered yet
+				return FormValidation.ok();
+			}
+			SCPSite site = new SCPSite(hostname, request.getParameter("port"),
+					request.getParameter("user"), request
+							.getParameter("pass"),request.getParameter("keyfile"));
+			try {
+				try {
+					site.createSession();
+					site.closeSession();
+				} catch (JSchException e) {
+					LOGGER.log(Level.SEVERE, e.getMessage());
+					throw new IOException("Can't connect to server");
 				}
-			}.process();
-
+			} catch (IOException e) {
+				LOGGER.log(Level.SEVERE, e.getMessage());
+				return FormValidation.error(e.getMessage());
+			}
+			return FormValidation.ok();
 		}
 
 	}
