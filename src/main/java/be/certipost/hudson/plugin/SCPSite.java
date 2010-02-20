@@ -1,6 +1,13 @@
 package be.certipost.hudson.plugin;
 
 import hudson.FilePath;
+import hudson.model.Computer;
+import hudson.model.Hudson;
+import hudson.model.Node;
+import hudson.model.Hudson.MasterComputer;
+import hudson.slaves.NodeProperty;
+import hudson.slaves.NodePropertyDescriptor;
+import hudson.util.DescribableList;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,10 +38,6 @@ public class SCPSite {
 	String keyfile;
 	String rootRepositoryPath;
 
-	JSch jsch;
-	private Session session;
-	private ChannelSftp channel;
-
 	public static final Logger LOGGER = Logger.getLogger(SCPSite.class
 			.getName());
 
@@ -48,7 +51,7 @@ public class SCPSite {
 		this.port = port;
 		this.username = username;
 		this.password = password;
-		this.rootRepositoryPath = rootRepositoryPath;
+		this.rootRepositoryPath = rootRepositoryPath.trim();
 	}
 
 	public SCPSite(String hostname, String port, String username,
@@ -123,18 +126,18 @@ public class SCPSite {
 	}
 
 	public void setRootRepositoryPath(String rootRepositoryPath) {
-		this.rootRepositoryPath = rootRepositoryPath;
+		this.rootRepositoryPath = rootRepositoryPath.trim();
 	}
 
 	public String getName() {
 		return hostname;
 	}
 
-	public void createSession() throws JSchException {
-		jsch = new JSch();
+	public Session createSession(PrintStream logger) throws JSchException {
+		JSch jsch = new JSch();
 
-		session = jsch.getSession(username, hostname, port);
-		if (this.keyfile != null && this.keyfile.length()>0) {
+		Session session = jsch.getSession(username, hostname, port);
+		if (this.keyfile != null && this.keyfile.length() > 0) {
 			jsch.addIdentity(this.keyfile, this.password);
 		} else {
 			session.setPassword(password);
@@ -144,18 +147,24 @@ public class SCPSite {
 		session.setUserInfo(ui);
 
 		java.util.Properties config = new java.util.Properties();
-		config.put("StrictHostKeyChecking", "no");		
+		config.put("StrictHostKeyChecking", "no");
 		session.setConfig(config);
 		session.connect();
 
-		channel = (ChannelSftp) session.openChannel("sftp");
-		channel.setOutputStream(System.out);
-
-		channel.connect();
+		return session;
 
 	}
 
-	public void closeSession() {
+	public ChannelSftp createChannel(PrintStream logger, Session session)
+			throws JSchException {
+		ChannelSftp channel = (ChannelSftp) session.openChannel("sftp");
+		channel.setOutputStream(System.out);
+		channel.connect();
+		return channel;
+	}
+
+	public void closeSession(PrintStream logger, Session session,
+			ChannelSftp channel) {
 		if (channel != null) {
 			channel.disconnect();
 			channel = null;
@@ -168,10 +177,10 @@ public class SCPSite {
 	}
 
 	public void upload(String folderPath, FilePath filePath,
-			Map<String, String> envVars, PrintStream logger)
+			Map<String, String> envVars, PrintStream logger, ChannelSftp channel)
 			throws IOException, InterruptedException, SftpException {
-
-		if (session == null || channel == null) {
+		// if ( session == null ||
+		if (channel == null) {
 			throw new IOException("Connection to " + hostname + ", user="
 					+ username + " is not established");
 		}
@@ -191,21 +200,44 @@ public class SCPSite {
 			if (subfiles != null) {
 				for (int i = 0; i < subfiles.length; i++) {
 					upload(folderPath + "/" + filePath.getName(), subfiles[i],
-							envVars, logger);
+							envVars, logger, channel);
 				}
 			}
 		} else {
 			String localfilename = filePath.getName();
-			mkdirs(folderPath, logger);
+			mkdirs(folderPath, logger, channel);
+
+			// Fix for mkdirs
+			String strWorkspacePath = envVars.get("strWorkspacePath");
+			String strRelativePath = extractRelativePath(strWorkspacePath,
+					filePath, logger);
+
+			String strTmp = concatDir(folderPath, strRelativePath);
+			String strNewPath = concatDir(rootRepositoryPath, strTmp);
+			if (!strRelativePath.equals("")) {
+				// System.out.println("SCPSite.upload()   mkdirs(strTmp = "
+				// + strTmp);
+				// Make subdirs
+				mkdirs(strTmp, logger, channel);
+			}
+
+			if (!strNewPath.endsWith("/")) {
+				strNewPath += "/";
+			}
+
+			String strNewFilename = strNewPath + localfilename;
+
+			log(logger, "uploading file: '" + strNewFilename + "'");
 			InputStream in = filePath.read();
-			channel.put(in, rootRepositoryPath + "/" + folderPath + "/"
-					+ localfilename);
+			channel.put(in, strNewFilename);
+			// ~Fix for mkdirs
+
 			in.close();
 		}
 
 	}
 
-	private void mkdirs(String filePath, PrintStream logger)
+	private void mkdirs(String filePath, PrintStream logger, ChannelSftp channel)
 			throws SftpException, IOException {
 		String pathnames[] = filePath.split("/");
 		String curdir = rootRepositoryPath;
@@ -252,4 +284,60 @@ public class SCPSite {
 						+ message);
 	}
 
+	/**
+	 * @param folderPath
+	 * @param strRelativePath
+	 * @return
+	 */
+	private String concatDir(String folderPath, String strRelativePath) {
+		String strTmp;
+		if (folderPath.endsWith("/") || folderPath.equals("")) {
+			strTmp = folderPath + strRelativePath;
+		} else {
+			strTmp = folderPath + "/" + strRelativePath;
+		}
+
+		// System.out.println("SCPSite.concatDir()strTmp = " + strTmp);
+
+		return strTmp;
+	}
+
+	/**
+	 * Returns the relative path to the workspace
+	 * 
+	 * @param strWorkspacePath
+	 * @param filePath
+	 * @return
+	 */
+	private String extractRelativePath(String strWorkspacePath,
+			FilePath filePath, PrintStream logger) {
+		String strRet = "";
+		String strFilePath = filePath.getParent().toString();
+		if (strWorkspacePath.length() == strFilePath.length()) {
+			return "";
+		}
+
+		if (strFilePath.length() > strWorkspacePath.length()) {
+			strRet = strFilePath.substring(strWorkspacePath.length() + 1,
+					strFilePath.length());// Exclude
+			// first
+			// file
+			// separator
+		}
+		strRet = strRet.replace('\\', '/');
+
+		return strRet;
+	}
+
+	private static DescribableList<NodeProperty<?>, NodePropertyDescriptor> getNodeProperties() {
+		Node node = Computer.currentComputer().getNode();
+		DescribableList<NodeProperty<?>, NodePropertyDescriptor> nodeProperties = node
+				.getNodeProperties();
+
+		if (Computer.currentComputer() instanceof MasterComputer) {
+			Hudson instance = Hudson.getInstance();
+			nodeProperties = instance.getGlobalNodeProperties();
+		}
+		return nodeProperties;
+	}
 }
