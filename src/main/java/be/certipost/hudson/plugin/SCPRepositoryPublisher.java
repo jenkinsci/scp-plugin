@@ -263,7 +263,7 @@ public final class SCPRepositoryPublisher extends Notifier {
 		private final CopyOnWriteList<SCPSite> sites = new CopyOnWriteList<SCPSite>();
 
 		public String getDisplayName() {
-			return "Publish artifacts to SCP Repository";
+			return Messages.SCPRepositoryPublisher_DisplayName();
 		}
 
 		public String getShortName() {
@@ -311,7 +311,7 @@ public final class SCPRepositoryPublisher extends Notifier {
 			if (keyfile != null) {
 				File f = new File(keyfile);
 				if (!f.isFile()) {
-					return FormValidation.error("keyfile does not exist");
+					return FormValidation.error(Messages.SCPRepositoryPublisher_KeyFileNotExist());
 				}
 			}
 
@@ -334,7 +334,7 @@ public final class SCPRepositoryPublisher extends Notifier {
 							null);
 				} catch (JSchException e) {
 					LOGGER.log(Level.SEVERE, e.getMessage());
-					throw new IOException("Can't connect to server");
+					throw new IOException(Messages.SCPRepositoryPublisher_NotConnect());
 				}
 			} catch (IOException e) {
 				LOGGER.log(Level.SEVERE, e.getMessage());
