@@ -18,4 +18,6 @@ public final class Entry {
      * May contain macro, wildcard.
      */
     public String sourceFile;
+
+    public boolean keepHierarchy;
 }

@@ -22,6 +22,12 @@
             type="text" value="${e.filePath}" />
         </f:entry>
         <f:entry title="">
+          <label>
+            <f:checkbox name="scp.entry.keepHierarchy" checked="${e.keepHierarchy}" />
+            ${%Keep Hierarchy}
+          </label>
+        </f:entry>    
+        <f:entry title="">
           <div align="right">
             <f:repeatableDeleteButton />
           </div>

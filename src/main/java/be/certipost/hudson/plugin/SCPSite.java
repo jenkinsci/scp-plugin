@@ -176,7 +176,7 @@ public class SCPSite {
 
 	}
 
-	public void upload(String folderPath, FilePath filePath,
+	public void upload(String folderPath, FilePath filePath, boolean keepHierarchy,
 			Map<String, String> envVars, PrintStream logger, ChannelSftp channel)
 			throws IOException, InterruptedException, SftpException {
 		// if ( session == null ||
@@ -200,32 +200,38 @@ public class SCPSite {
 			if (subfiles != null) {
 				for (int i = 0; i < subfiles.length; i++) {
 					upload(folderPath + "/" + filePath.getName(), subfiles[i],
-							envVars, logger, channel);
+							keepHierarchy, envVars, logger, channel);
 				}
 			}
 		} else {
 			String localfilename = filePath.getName();
 			mkdirs(folderPath, logger, channel);
 
-			// Fix for mkdirs
-			String strWorkspacePath = envVars.get("strWorkspacePath");
-			String strRelativePath = extractRelativePath(strWorkspacePath,
-					filePath, logger);
+            String strNewFilename;
+            if (keepHierarchy) {
+                // Fix for mkdirs
+                String strWorkspacePath = envVars.get("strWorkspacePath");
+                String strRelativePath = extractRelativePath(strWorkspacePath,
+                        filePath, logger);
 
-			String strTmp = concatDir(folderPath, strRelativePath);
-			String strNewPath = concatDir(rootRepositoryPath, strTmp);
-			if (!strRelativePath.equals("")) {
-				// System.out.println("SCPSite.upload()   mkdirs(strTmp = "
-				// + strTmp);
-				// Make subdirs
-				mkdirs(strTmp, logger, channel);
-			}
+                String strTmp = concatDir(folderPath, strRelativePath);
+                String strNewPath = concatDir(rootRepositoryPath, strTmp);
+                if (!strRelativePath.equals("")) {
+                    // System.out.println("SCPSite.upload()   mkdirs(strTmp = "
+                    // + strTmp);
+                    // Make subdirs
+                    mkdirs(strTmp, logger, channel);
+                }
 
-			if (!strNewPath.endsWith("/")) {
-				strNewPath += "/";
-			}
+                if (!strNewPath.endsWith("/")) {
+                    strNewPath += "/";
+                }
 
-			String strNewFilename = strNewPath + localfilename;
+                strNewFilename = strNewPath + localfilename;
+            } else {
+                String strTmp = concatDir(folderPath, localfilename);
+                strNewFilename = concatDir(rootRepositoryPath, strTmp);
+            }
 
 			log(logger, "uploading file: '" + strNewFilename + "'");
 			InputStream in = filePath.read();

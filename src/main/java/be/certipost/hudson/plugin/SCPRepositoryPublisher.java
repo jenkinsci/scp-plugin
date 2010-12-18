@@ -208,16 +208,14 @@ public final class SCPRepositoryPublisher extends Notifier {
 					// + "',local file:'" + src[0].getName() + "'");
 					// System.out.println("remote folderPath '" + folderPath
 					// + "',local file:'" + src[0].getName() + "'");
-					scpsite
-							.upload(folderPath, src[0], envVars, logger,
-									channel);
+					scpsite.upload(folderPath, src[0], e.keepHierarchy, envVars, logger, channel);
 				} else {
 					for (FilePath s : src) {
 						// System.out.println("remote folderPath '" + folderPath
 						// + "',local file:'" + s.getName() + "'");
 						// log(logger, "remote folderPath '" + folderPath
 						// + "',local file:'" + s.getName() + "'");
-						scpsite.upload(folderPath, s, envVars, logger, channel);
+						scpsite.upload(folderPath, s, e.keepHierarchy, envVars, logger, channel);
 					}
 				}
 			}
