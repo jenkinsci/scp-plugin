@@ -27,7 +27,6 @@ import hudson.util.FormValidation;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +43,7 @@ import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpException;
+import org.kohsuke.stapler.DataBoundConstructor;
 
 /**
  * 
@@ -59,20 +59,20 @@ public final class SCPRepositoryPublisher extends Notifier {
 	public static final Logger LOGGER = Logger
 			.getLogger(SCPRepositoryPublisher.class.getName());
 
-	private final List<Entry> entries = new ArrayList<Entry>();
+	private final List<Entry> entries;
 
-	public SCPRepositoryPublisher() {
-	}
-
-	public SCPRepositoryPublisher(String siteName) {
-		if (siteName == null) {
-			// defaults to the first one
-			SCPSite[] sites = DESCRIPTOR.getSites();
-			if (sites.length > 0)
-				siteName = sites[0].getName();
-		}
-		this.siteName = siteName;
-	}
+    @DataBoundConstructor
+    public SCPRepositoryPublisher(String siteName, List<Entry> entries) {
+        if (siteName == null) {
+            // defaults to the first one
+            SCPSite[] sites = DESCRIPTOR.getSites();
+			if (sites.length > 0) {
+                siteName = sites[0].getName();
+            }
+        }
+        this.entries = entries;
+        this.siteName = siteName;
+    }
 
 	public List<Entry> getEntries() {
 		return entries;
@@ -279,13 +279,9 @@ public final class SCPRepositoryPublisher extends Notifier {
 		}
 
 		@Override
-		public Publisher newInstance(StaplerRequest req, JSONObject formData) {
-			SCPRepositoryPublisher pub = new SCPRepositoryPublisher();
-			req.bindParameters(pub, "scp.");
-			pub.getEntries().addAll(
-					req.bindParametersToList(Entry.class, "scp.entry."));
-			return pub;
-		}
+        public Publisher newInstance(StaplerRequest req, JSONObject formData) {
+            return req.bindJSON(SCPRepositoryPublisher.class, formData);
+        }
 
 		public SCPSite[] getSites() {
 			Iterator<SCPSite> it = sites.iterator();

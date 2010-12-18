@@ -11,7 +11,7 @@
 
   <f:entry title="${%Files to upload}">
 		
-    <f:repeatable var="e" items="${instance.entries}">
+    <f:repeatable name="entries" var="e" items="${instance.entries}">
       <table width="100%">
         <f:entry title="${%Source}" help="${helpURL}/help-source.html">
           <input class="setting-input" name="scp.entry.sourceFile"
