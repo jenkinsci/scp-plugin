@@ -9,7 +9,7 @@
   
   <artifactId>scp</artifactId>
   <packaging>hpi</packaging>
-  <version>1.8-SNAPSHOT</version>
+  <version>1.8</version>
   <name>Hudson SCP publisher plugin</name>
   <url>http://wiki.hudson-ci.org/display/HUDSON/SCP+plugin</url>
 
@@ -27,4 +27,10 @@
       <version>0.1.42</version>
     </dependency>
   </dependencies>
+
+  <scm>
+    <connection>scm:svn:https://guest@svn.java.net/svn/hudson~svn/tags/scp-1.8</connection>
+    <developerConnection>scm:svn:https://svn.java.net/svn/hudson~svn/tags/scp-1.8</developerConnection>
+    <url>https://svn.java.net/svn/hudson~svn/tags/scp-1.8</url>
+  </scm>
 </project>
