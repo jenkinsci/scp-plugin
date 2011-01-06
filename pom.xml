@@ -80,7 +80,7 @@
     <scm>
         <connection>scm:git:git://github.com/hudson/scp-plugin.git</connection>
         <developerConnection>scm:git:git@github.com:hudson/scp-plugin.git</developerConnection>
-        <url>http://github.com/hudson/scp-plugin.git</url>
+        <url>http://github.com/hudson/scp-plugin</url>
     </scm>
 
 </project>
