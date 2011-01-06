@@ -9,7 +9,7 @@
   
     <artifactId>scp</artifactId>
     <packaging>hpi</packaging>
-    <version>1.8-SNAPSHOT</version>
+    <version>1.8</version>
     <name>Hudson SCP publisher plugin</name>
     <url>http://wiki.hudson-ci.org/display/HUDSON/SCP+plugin</url>
 
