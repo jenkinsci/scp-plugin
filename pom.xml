@@ -11,7 +11,7 @@
   <artifactId>scp</artifactId>
   <packaging>hpi</packaging>
   <version>1.9-SNAPSHOT</version>
-  <name>Hudson SCP publisher plugin</name>
+  <name>Jenkins SCP publisher plugin</name>
   <url>http://wiki.jenkins-ci.org/display/HUDSON/SCP+plugin</url>
 
 
