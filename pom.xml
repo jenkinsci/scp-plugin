@@ -12,13 +12,13 @@
   <packaging>hpi</packaging>
   <version>1.9-SNAPSHOT</version>
   <name>Hudson SCP publisher plugin</name>
-  <url>http://wiki.hudson-ci.org/display/HUDSON/SCP+plugin</url>
+  <url>http://wiki.jenkins-ci.org/display/HUDSON/SCP+plugin</url>
 
 
   <scm>
-    <connection>scm:git:git://github.com/hudson/scp-plugin.git</connection>
-    <developerConnection>scm:git:git@github.com:hudson/scp-plugin.git</developerConnection>
-    <url>http://github.com/hudson/scp-plugin</url>
+    <connection>scm:git:git://github.com/jenkinsci/scp-plugin.git</connection>
+    <developerConnection>scm:git:git@github.com:jenkinsci/scp-plugin.git</developerConnection>
+    <url>http://github.com/jenkins/scp-plugin</url>
   </scm>
 
   <properties>
