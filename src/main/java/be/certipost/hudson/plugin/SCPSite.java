@@ -32,6 +32,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
  * 
  */
 public class SCPSite {
+	String displayname;
 	String hostname;
 	int port;
 	String username;
@@ -46,8 +47,9 @@ public class SCPSite {
 
 	}
 
-	public SCPSite(String hostname, int port, String username, String password,
+	public SCPSite(String displayname, String hostname, int port, String username, String password,
 			String rootRepositoryPath) {
+		this.displayname = displayname;
 		this.hostname = hostname;
 		this.port = port;
 		this.username = username;
@@ -55,8 +57,9 @@ public class SCPSite {
 		this.rootRepositoryPath = rootRepositoryPath.trim();
 	}
 
-	public SCPSite(String hostname, String port, String username,
+	public SCPSite(String displayname, String hostname, String port, String username,
 			String password) {
+		this.displayname = displayname;
 		this.hostname = hostname;
 		try {
 			this.port = Integer.parseInt(port);
@@ -67,9 +70,9 @@ public class SCPSite {
 		this.password = password;
 	}
 
-	public SCPSite(String hostname, String port, String username,
+	public SCPSite(String displayname, String hostname, String port, String username,
 			String passphrase, String keyfile) {
-		this(hostname, port, username, passphrase);
+		this(displayname, hostname, port, username, passphrase);
 
 		this.keyfile = keyfile;
 	}
@@ -82,6 +85,14 @@ public class SCPSite {
 		this.keyfile = keyfile;
 	}
 
+	public String getDisplayname() {
+		return displayname;
+	}
+
+	public void setDisplayname(String displayname) {
+		this.displayname = displayname;
+	}
+	
 	public String getHostname() {
 		return hostname;
 	}
@@ -131,7 +142,11 @@ public class SCPSite {
 	}
 
 	public String getName() {
-		return hostname;
+		if (StringUtils.isEmpty(displayname)) {
+			return username + "@" + hostname + ":" + rootRepositoryPath;
+		} else {
+			return displayname;
+		}
 	}
 
 	public Session createSession(PrintStream logger) throws JSchException {

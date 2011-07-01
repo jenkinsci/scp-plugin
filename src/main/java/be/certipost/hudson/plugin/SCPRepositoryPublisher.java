@@ -317,7 +317,7 @@ public final class SCPRepositoryPublisher extends Notifier {
 			if (hostname == null) {// hosts is not entered yet
 				return FormValidation.ok();
 			}
-			SCPSite site = new SCPSite(hostname, request.getParameter("port"),
+			SCPSite site = new SCPSite("", hostname, request.getParameter("port"),
 					request.getParameter("user"), request.getParameter("pass"),
 					request.getParameter("keyfile"));
 			try {
