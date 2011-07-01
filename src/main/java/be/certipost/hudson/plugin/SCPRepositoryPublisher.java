@@ -2,7 +2,6 @@ package be.certipost.hudson.plugin;
 
 import hudson.EnvVars;
 import hudson.Extension;
-import hudson.FilePath;
 import hudson.Launcher;
 import hudson.Util;
 import hudson.model.AbstractBuild;
@@ -27,6 +26,7 @@ import hudson.util.FormValidation;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -39,10 +39,8 @@ import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 
-import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
-import com.jcraft.jsch.SftpException;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 /**
@@ -52,32 +50,66 @@ import org.kohsuke.stapler.DataBoundConstructor;
  */
 public final class SCPRepositoryPublisher extends Notifier {
 
+	public static final Logger LOGGER = Logger
+		.getLogger(SCPRepositoryPublisher.class.getName());
+
+	/**
+	 * The list of individual site publishers
+	 */
+	private List<SitePublisher> publishers;
+
 	/**
 	 * Name of the scp site to post a file to.
+	 * Only used for import of existing configurations.
 	 */
+	@Deprecated
 	private String siteName;
-	public static final Logger LOGGER = Logger
-			.getLogger(SCPRepositoryPublisher.class.getName());
 
-	private final List<Entry> entries;
+	/**
+	 * The list of entries for the site.
+	 * Only used for import of existing configurations.
+	 */
+	@Deprecated
+	private List<Entry> entries;
 
     @DataBoundConstructor
-    public SCPRepositoryPublisher(String siteName, List<Entry> entries) {
-        if (siteName == null) {
-            // defaults to the first one
-            SCPSite[] sites = DESCRIPTOR.getSites();
-			if (sites.length > 0) {
-                siteName = sites[0].getName();
-            }
-        }
-        this.entries = entries;
-        this.siteName = siteName;
+    public SCPRepositoryPublisher(List<SitePublisher> publishers) {
+    	if (publishers == null) {
+    		this.publishers = new ArrayList<SitePublisher>();
+    	} else {
+    		this.publishers = publishers;
+    	}
+    	this.siteName = null;
+    	this.entries = null;
     }
 
+    /**
+     * @return the publishers for this site
+     */
+    public List<SitePublisher> getPublishers() {
+    	return publishers;
+    }
+
+    public Object readResolve() {
+    	if ((siteName != null) || (entries != null)) {
+    		// Convert from old style single site to new multi-site
+    		// configuration.
+    		if (this.publishers == null) {
+    			this.publishers = new ArrayList<SitePublisher>();
+    		}
+    		this.publishers.add(new SitePublisher(this.siteName, this.entries));
+    		this.siteName = null;
+    		this.entries = null;
+    	}
+    	return this;
+    }
+
+    @Deprecated
 	public List<Entry> getEntries() {
 		return entries;
 	}
 
+    @Deprecated
 	public SCPSite getSite() {
 		SCPSite[] sites = DESCRIPTOR.getSites();
 		if (siteName == null && sites.length > 0)
@@ -144,97 +176,17 @@ public final class SCPRepositoryPublisher extends Notifier {
 			return true;
 		}
 
-		SCPSite scpsite = null;
 		PrintStream logger = listener.getLogger();
-		Session session = null;
-		ChannelSftp channel = null;
+
 		try {
-			scpsite = getSite();
-			if (scpsite == null) {
-				log(logger,
-						"No SCP site is configured. This is likely a configuration problem.");
-				build.setResult(Result.UNSTABLE);
-				return true;
-			}
-			log(logger, "Connecting to " + scpsite.getHostname());
-			session = scpsite.createSession(logger);
-			channel = scpsite.createChannel(logger, session);
-
 			Map<String, String> envVars = build.getEnvironment(listener);
-			// Patched for env vars
-			EnvVars objNodeEnvVars = getEnvVars();
-			if (objNodeEnvVars != null) {
-				envVars.putAll(objNodeEnvVars);
-			}
-			// ~ Patched for env vars
-
-			for (Entry e : entries) {
-				String expanded = Util.replaceMacro(e.sourceFile, envVars);
-				FilePath ws = build.getWorkspace();
-				FilePath[] src = ws.list(expanded);
-				if (src.length == 0) {
-					// try to do error diagnostics
-					log(logger, ("No file(s) found: " + expanded));
-					String error = ws.validateAntFileMask(expanded);
-					if (error != null)
-						log(logger, error);
-					continue;
-				}
-				String folderPath = Util.replaceMacro(e.filePath, envVars);
-
-				// Fix for recursive mkdirs
-				folderPath = folderPath.trim();
-
-				// Making workspace to have the same path separators like in the
-				// FilePath objects
-				String strWorkspacePath = ws.toString();
-
-				String strFirstFile = src[0].toString();
-				if (strFirstFile.indexOf('\\') >= 0) {
-					strWorkspacePath = strWorkspacePath.replace('/', '\\');
-				} else {
-					strWorkspacePath = strWorkspacePath.replace('\\', '/');// Linux
-					// Unix
-				}
-
-				// System.out
-				// .println("SCPRepositoryPublisher.perform()strWorkspacePath = "
-				// + strWorkspacePath);
-				envVars.put("strWorkspacePath", strWorkspacePath);
-				// ~Fix for recursive mkdirs
-
-				if (src.length == 1) {
-					// log(logger, "remote folderPath '" + folderPath
-					// + "',local file:'" + src[0].getName() + "'");
-					// System.out.println("remote folderPath '" + folderPath
-					// + "',local file:'" + src[0].getName() + "'");
-					scpsite.upload(folderPath, src[0], e.keepHierarchy, envVars, logger, channel);
-				} else {
-					for (FilePath s : src) {
-						// System.out.println("remote folderPath '" + folderPath
-						// + "',local file:'" + s.getName() + "'");
-						// log(logger, "remote folderPath '" + folderPath
-						// + "',local file:'" + s.getName() + "'");
-						scpsite.upload(folderPath, s, e.keepHierarchy, envVars, logger, channel);
-					}
-				}
+			for (SitePublisher publisher : publishers) {
+				publisher.performUpload(build, launcher, listener, logger, envVars);
 			}
 		} catch (IOException e) {
 			e.printStackTrace(listener.error("Failed to upload files"));
 			build.setResult(Result.UNSTABLE);
-		} catch (JSchException e) {
-			e.printStackTrace(listener.error("Failed to upload files"));
-			build.setResult(Result.UNSTABLE);
-		} catch (SftpException e) {
-			e.printStackTrace(listener.error("Failed to upload files"));
-			build.setResult(Result.UNSTABLE);
-		} finally {
-			if (scpsite != null) {
-				scpsite.closeSession(logger, session, channel);
-			}
-
 		}
-
 		return true;
 	}
 
@@ -339,15 +291,17 @@ public final class SCPRepositoryPublisher extends Notifier {
 
 	}
 
+    @Deprecated
 	public String getSiteName() {
 		return siteName;
 	}
 
+    @Deprecated
 	public void setSiteName(String siteName) {
 		this.siteName = siteName;
 	};
 
-	protected void log(final PrintStream logger, final String message) {
+	protected static void log(final PrintStream logger, final String message) {
 		logger.println(StringUtils.defaultString(DESCRIPTOR.getShortName())
 				+ message);
 	}

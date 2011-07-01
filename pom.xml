@@ -4,14 +4,13 @@
         <groupId>org.jvnet.hudson.plugins</groupId>
         <artifactId>plugin</artifactId>
         <version>1.389</version>
-        <relativePath>../pom.xml</relativePath>
     </parent>
   
     <artifactId>scp</artifactId>
     <packaging>hpi</packaging>
     <version>1.9-SNAPSHOT</version>
     <name>Hudson SCP publisher plugin</name>
-    <url>http://wiki.hudson-ci.org/display/HUDSON/SCP+plugin</url>
+    <url>http://wiki.jenkins-ci.org/display/JENKINS/SCP+plugin</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -72,15 +71,15 @@
 
     <distributionManagement>
         <repository>
-            <id>java.net-m2-repository</id>
-            <url>http://maven.hudson-labs.org:8081/content/repositories/releases/</url>
+            <id>maven.jenkins-ci.org</id>
+            <url>http://maven.jenkins-ci.org:8081/content/repositories/releases/</url>
         </repository>
     </distributionManagement>
-  
+
     <scm>
-        <connection>scm:git:git://github.com/hudson/scp-plugin.git</connection>
-        <developerConnection>scm:git:git@github.com:hudson/scp-plugin.git</developerConnection>
-        <url>http://github.com/hudson/scp-plugin</url>
+        <connection>scm:git:git://github.com/jenkinsci/scp-plugin.git</connection>
+        <developerConnection>scm:git:git@github.com:jenkinsci/scp-plugin.git</developerConnection>
+        <url>http://github.com/jenkinsci/scp-plugin</url>
     </scm>
 
 </project>
