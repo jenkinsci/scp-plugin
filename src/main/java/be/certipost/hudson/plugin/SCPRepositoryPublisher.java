@@ -33,6 +33,9 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import hudson.util.IOException2;
+import hudson.util.ListBoxModel;
+import hudson.util.ListBoxModel.Option;
 import net.sf.json.JSONObject;
 
 import org.apache.commons.lang.StringUtils;
@@ -238,11 +241,6 @@ public final class SCPRepositoryPublisher extends Notifier {
 		return true;
 	}
 
-	@Override
-	public BuildStepDescriptor<Publisher> getDescriptor() {
-		return DESCRIPTOR;
-	}
-
 	@Extension
 	public static final DescriptorImpl DESCRIPTOR = new DescriptorImpl();
 
@@ -269,19 +267,9 @@ public final class SCPRepositoryPublisher extends Notifier {
 		}
 
 		@Override
-		public String getHelpFile() {
-			return "/plugin/scp/help.html";
-		}
-
-		@Override
 		public boolean isApplicable(Class<? extends AbstractProject> jobType) {
 			return true;
 		}
-
-		@Override
-        public Publisher newInstance(StaplerRequest req, JSONObject formData) {
-            return req.bindJSON(SCPRepositoryPublisher.class, formData);
-        }
 
 		public SCPSite[] getSites() {
 			Iterator<SCPSite> it = sites.iterator();
@@ -300,6 +288,14 @@ public final class SCPRepositoryPublisher extends Notifier {
 			return true;
 		}
 
+        public ListBoxModel doFillSiteNameItems() {
+            ListBoxModel model = new ListBoxModel();
+            for (SCPSite site : getSites()) {
+                model.add(site.getName());
+            }
+            return model;
+        }
+
 		public FormValidation doKeyfileCheck(@QueryParameter String keyfile) {
 			keyfile = Util.fixEmpty(keyfile);
 			if (keyfile != null) {
@@ -312,31 +308,23 @@ public final class SCPRepositoryPublisher extends Notifier {
 			return FormValidation.ok();
 		}
 
-		public FormValidation doLoginCheck(StaplerRequest request) {
-			String hostname = Util.fixEmpty(request.getParameter("hostname"));
+		public FormValidation doLoginCheck(@QueryParameter String hostname, @QueryParameter String port, @QueryParameter String user, @QueryParameter String pass, @QueryParameter String keyfile) {
+			hostname = Util.fixEmpty(hostname);
 			if (hostname == null) {// hosts is not entered yet
 				return FormValidation.ok();
 			}
-			SCPSite site = new SCPSite("", hostname, request.getParameter("port"),
-					request.getParameter("user"), request.getParameter("pass"),
-					request.getParameter("keyfile"));
+			SCPSite site = new SCPSite("", hostname, port, user, pass, keyfile);
 			try {
-				try {
-					Session session = site.createSession(new PrintStream(
-							System.out));
-					site.closeSession(new PrintStream(System.out), session,
-							null);
-				} catch (JSchException e) {
-					LOGGER.log(Level.SEVERE, e.getMessage());
-					throw new IOException(Messages.SCPRepositoryPublisher_NotConnect());
-				}
-			} catch (IOException e) {
-				LOGGER.log(Level.SEVERE, e.getMessage());
-				return FormValidation.error(e.getMessage());
-			}
+                Session session = site.createSession(new PrintStream(
+                        System.out));
+                site.closeSession(new PrintStream(System.out), session,
+                        null);
+            } catch (JSchException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+                return FormValidation.error(e,Messages.SCPRepositoryPublisher_NotConnect());
+            }
 			return FormValidation.ok();
 		}
-
 	}
 
 	public String getSiteName() {
@@ -345,7 +333,7 @@ public final class SCPRepositoryPublisher extends Notifier {
 
 	public void setSiteName(String siteName) {
 		this.siteName = siteName;
-	};
+	}
 
 	protected void log(final PrintStream logger, final String message) {
 		logger.println(StringUtils.defaultString(DESCRIPTOR.getShortName())

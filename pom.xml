@@ -6,6 +6,7 @@
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
     <version>1.403</version>
+    <relativePath/>
   </parent>
 
   <artifactId>scp</artifactId>
@@ -47,13 +48,6 @@
         </dependencies>
       </plugin>
     </plugins>
-    <extensions>
-      <extension>
-        <groupId>org.jvnet.wagon-svn</groupId>
-        <artifactId>wagon-svn</artifactId>
-        <version>1.9</version>
-      </extension>
-    </extensions>
   </build>
 
   <dependencies>

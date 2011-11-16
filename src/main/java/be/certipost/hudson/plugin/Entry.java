@@ -1,5 +1,8 @@
 package be.certipost.hudson.plugin;
 
+import hudson.Extension;
+import hudson.model.AbstractDescribableImpl;
+import hudson.model.Descriptor;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 /**
@@ -7,7 +10,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
  * @author Ramil Israfilov
  *
  */
-public final class Entry {
+public final class Entry extends AbstractDescribableImpl<Entry> {
 
     /**
      * Destination folder for the copy. May contain macros. 
@@ -29,5 +32,13 @@ public final class Entry {
         this.filePath = filePath;
         this.sourceFile = sourceFile;
         this.keepHierarchy = keepHierarchy;
+    }
+
+    @Extension
+    public static class DescriptorImpl extends Descriptor<Entry> {
+        @Override
+        public String getDisplayName() {
+            return "";
+        }
     }
 }
