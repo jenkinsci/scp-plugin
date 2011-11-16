@@ -1,7 +1,11 @@
 package be.certipost.hudson.plugin;
 
+import hudson.Extension;
 import hudson.FilePath;
+import hudson.Util;
+import hudson.model.AbstractDescribableImpl;
 import hudson.model.Computer;
+import hudson.model.Descriptor;
 import hudson.model.Hudson;
 import hudson.model.Node;
 import hudson.model.Hudson.MasterComputer;
@@ -9,12 +13,15 @@ import hudson.slaves.NodeProperty;
 import hudson.slaves.NodePropertyDescriptor;
 import hudson.util.DescribableList;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import hudson.util.FormValidation;
 import org.apache.commons.lang.StringUtils;
 
 import com.jcraft.jsch.ChannelSftp;
@@ -24,14 +31,14 @@ import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
 import com.jcraft.jsch.UserInfo;
-import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 
 /**
  * 
  * @author Ramil Israfilov
  * 
  */
-public class SCPSite {
+public class SCPSite extends AbstractDescribableImpl<SCPSite> {
 	String displayname;
 	String hostname;
 	int port;
@@ -362,4 +369,42 @@ public class SCPSite {
 		}
 		return nodeProperties;
 	}
+
+    @Extension
+    public static class DescriptorImpl extends Descriptor<SCPSite> {
+        @Override
+        public String getDisplayName() {
+            return "";
+        }
+
+        public FormValidation doCheckKeyfile(@QueryParameter String keyfile) {
+            keyfile = Util.fixEmpty(keyfile);
+            if (keyfile != null) {
+                File f = new File(keyfile);
+                if (!f.isFile()) {
+                    return FormValidation.error(Messages.SCPRepositoryPublisher_KeyFileNotExist());
+                }
+            }
+
+            return FormValidation.ok();
+        }
+
+        public FormValidation doLoginCheck(@QueryParameter String hostname, @QueryParameter String port, @QueryParameter String username, @QueryParameter String password, @QueryParameter String keyfile) {
+            hostname = Util.fixEmpty(hostname);
+            if (hostname == null) {// hosts is not entered yet
+                return FormValidation.ok();
+            }
+            SCPSite site = new SCPSite("", hostname, port, username, password, keyfile);
+            try {
+                Session session = site.createSession(new PrintStream(
+                        System.out));
+                site.closeSession(new PrintStream(System.out), session,
+                        null);
+            } catch (JSchException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+                return FormValidation.error(e,Messages.SCPRepositoryPublisher_NotConnect());
+            }
+            return FormValidation.ok("Success!");
+        }
+    }
 }

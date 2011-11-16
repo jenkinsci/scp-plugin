@@ -295,36 +295,6 @@ public final class SCPRepositoryPublisher extends Notifier {
             }
             return model;
         }
-
-		public FormValidation doKeyfileCheck(@QueryParameter String keyfile) {
-			keyfile = Util.fixEmpty(keyfile);
-			if (keyfile != null) {
-				File f = new File(keyfile);
-				if (!f.isFile()) {
-					return FormValidation.error(Messages.SCPRepositoryPublisher_KeyFileNotExist());
-				}
-			}
-
-			return FormValidation.ok();
-		}
-
-		public FormValidation doLoginCheck(@QueryParameter String hostname, @QueryParameter String port, @QueryParameter String user, @QueryParameter String pass, @QueryParameter String keyfile) {
-			hostname = Util.fixEmpty(hostname);
-			if (hostname == null) {// hosts is not entered yet
-				return FormValidation.ok();
-			}
-			SCPSite site = new SCPSite("", hostname, port, user, pass, keyfile);
-			try {
-                Session session = site.createSession(new PrintStream(
-                        System.out));
-                site.closeSession(new PrintStream(System.out), session,
-                        null);
-            } catch (JSchException e) {
-                LOGGER.log(Level.SEVERE, e.getMessage(), e);
-                return FormValidation.error(e,Messages.SCPRepositoryPublisher_NotConnect());
-            }
-			return FormValidation.ok();
-		}
 	}
 
 	public String getSiteName() {

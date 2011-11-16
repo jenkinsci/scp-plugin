@@ -1,0 +1,33 @@
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+  <f:entry title="${%Displayname}" field="displayname">
+    <f:textbox />
+  </f:entry>
+  <f:entry title="${%Hostname}" field="hostname">
+    <f:textbox />
+  </f:entry>
+  <f:entry title="${%Port}" field="port">
+    <f:textbox />
+  </f:entry>
+  <f:entry title="${%Root Repository Path}" field="rootRepositoryPath">
+    <f:textbox />
+  </f:entry>
+  <f:entry title="${%User Name}" field="username">
+    <f:textbox />
+  </f:entry>
+  <f:entry title="${%Password/Passphrase}" field="password">
+    <f:password />
+  </f:entry>
+  <f:entry title="${%Keyfile}" field="keyfile">
+    <f:textbox />
+  </f:entry>
+  
+  <f:entry>
+    <f:validateButton title="${%Test Connection}" method="loginCheck" with="hostname,port,username,password,keyfile" />
+  </f:entry>
+
+  <f:entry title="">
+    <div align="right">
+      <f:repeatableDeleteButton />
+    </div>
+  </f:entry>
+</j:jelly>
