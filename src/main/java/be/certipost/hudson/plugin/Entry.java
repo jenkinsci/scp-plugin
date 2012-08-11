@@ -12,33 +12,33 @@ import org.kohsuke.stapler.DataBoundConstructor;
  */
 public final class Entry extends AbstractDescribableImpl<Entry> {
 
-    /**
-     * Destination folder for the copy. May contain macros. 
-     */
+	/**
+	 * Destination folder for the copy. May contain macros. 
+	 */
     public String filePath;
 
-    /**
-     * File name relative to the workspace root to upload. If the sourceFile is
-     * directory then all files in that directory will be copied to remote filePath directory recursively
-     * <p>
-     * May contain macro, wildcard.
-     */
-    public String sourceFile;
+	/**
+	 * File name relative to the workspace root to upload. If the sourceFile is
+	 * directory then all files in that directory will be copied to remote filePath directory recursively
+	 * <p>
+	 * May contain macro, wildcard.
+	 */
+	public String sourceFile;
 
-    public boolean keepHierarchy;
+	public boolean keepHierarchy;
 
-    @DataBoundConstructor
-    public Entry(String filePath, String sourceFile, boolean keepHierarchy) {
-        this.filePath = filePath;
-        this.sourceFile = sourceFile;
-        this.keepHierarchy = keepHierarchy;
-    }
+	@DataBoundConstructor
+	public Entry(String filePath, String sourceFile, boolean keepHierarchy) {
+		this.filePath = filePath;
+		this.sourceFile = sourceFile;
+		this.keepHierarchy = keepHierarchy;
+	}
 
-    @Extension
-    public static class DescriptorImpl extends Descriptor<Entry> {
-        @Override
-        public String getDisplayName() {
-            return "";
-        }
-    }
+	@Extension
+	public static class DescriptorImpl extends Descriptor<Entry> {
+		@Override
+		public String getDisplayName() {
+			return "";
+		}
+	}
 }

@@ -64,18 +64,18 @@ public final class SCPRepositoryPublisher extends Notifier {
 
 	private final List<Entry> entries;
 
-    @DataBoundConstructor
-    public SCPRepositoryPublisher(String siteName, List<Entry> entries) {
-        if (siteName == null) {
-            // defaults to the first one
-            SCPSite[] sites = DESCRIPTOR.getSites();
+	@DataBoundConstructor
+	public SCPRepositoryPublisher(String siteName, List<Entry> entries) {
+		if (siteName == null) {
+			// defaults to the first one
+			SCPSite[] sites = DESCRIPTOR.getSites();
 			if (sites.length > 0) {
-                siteName = sites[0].getName();
-            }
-        }
-        this.entries = entries;
-        this.siteName = siteName;
-    }
+				siteName = sites[0].getName();
+			}
+		}
+		this.entries = entries;
+		this.siteName = siteName;
+	}
 
 	public List<Entry> getEntries() {
 		return entries;
@@ -288,13 +288,13 @@ public final class SCPRepositoryPublisher extends Notifier {
 			return true;
 		}
 
-        public ListBoxModel doFillSiteNameItems() {
-            ListBoxModel model = new ListBoxModel();
-            for (SCPSite site : getSites()) {
-                model.add(site.getName());
-            }
-            return model;
-        }
+		public ListBoxModel doFillSiteNameItems() {
+			ListBoxModel model = new ListBoxModel();
+			for (SCPSite site : getSites()) {
+				model.add(site.getName());
+			}
+			return model;
+		}
 	}
 
 	public String getSiteName() {
