@@ -15,7 +15,7 @@ public final class Entry extends AbstractDescribableImpl<Entry> {
 	/**
 	 * Destination folder for the copy. May contain macros. 
 	 */
-    public String filePath;
+	public String filePath;
 
 	/**
 	 * File name relative to the workspace root to upload. If the sourceFile is
@@ -26,12 +26,17 @@ public final class Entry extends AbstractDescribableImpl<Entry> {
 	public String sourceFile;
 
 	public boolean keepHierarchy;
+	public boolean copyConsoleLog;
+	public boolean copyAfterFailure;
 
 	@DataBoundConstructor
-	public Entry(String filePath, String sourceFile, boolean keepHierarchy) {
+	public Entry(String filePath, String sourceFile, boolean copyConsoleLog,
+			boolean keepHierarchy, boolean copyAfterFailure) {
 		this.filePath = filePath;
 		this.sourceFile = sourceFile;
 		this.keepHierarchy = keepHierarchy;
+		this.copyConsoleLog = copyConsoleLog;
+		this.copyAfterFailure = copyAfterFailure;
 	}
 
 	@Extension
