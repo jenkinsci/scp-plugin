@@ -11,6 +11,7 @@ import hudson.util.DescribableList;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -175,6 +176,31 @@ public class SCPSite {
 			session = null;
 		}
 
+	}
+
+	public OutputStream createOutStream(String folderPath, String fileName, PrintStream logger, ChannelSftp channel)
+			throws IOException, SftpException {
+		if (channel == null) {
+			throw new IOException("Connection to " + hostname + ", user="
+					+ username + " is not established");
+		}
+
+		SftpATTRS rootdirstat = channel.stat(rootRepositoryPath);
+		if (rootdirstat == null) {
+			throw new IOException(
+					"Can't get stat of root repository directory:"
+							+ rootRepositoryPath);
+		} else {
+			if (!rootdirstat.isDir()) {
+				throw new IOException(rootRepositoryPath
+						+ " is not a directory");
+			}
+		}
+
+		mkdirs(folderPath, logger, channel);
+		String strTmp = concatDir(folderPath, fileName);
+		String strNewFilename = concatDir(rootRepositoryPath, strTmp);
+		return channel.put(strNewFilename);
 	}
 
 	public void upload(String folderPath, FilePath filePath, boolean keepHierarchy,

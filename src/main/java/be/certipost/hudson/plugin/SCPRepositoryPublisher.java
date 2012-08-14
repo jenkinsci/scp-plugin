@@ -5,6 +5,7 @@ import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
 import hudson.Util;
+import hudson.console.AnnotatedLargeText;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.BuildListener;
@@ -26,6 +27,7 @@ import hudson.util.FormValidation;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Iterator;
 import java.util.List;
@@ -138,12 +140,8 @@ public final class SCPRepositoryPublisher extends Notifier {
 	@Override
 	public boolean perform(AbstractBuild<?, ?> build, Launcher launcher,
 			BuildListener listener) throws InterruptedException, IOException {
-
-		if (build.getResult() == Result.FAILURE) {
-			// build failed. don't post
-			return true;
-		}
-
+		final Result cachedResult;
+		cachedResult = build.getResult();
 		SCPSite scpsite = null;
 		PrintStream logger = listener.getLogger();
 		Session session = null;
@@ -169,9 +167,28 @@ public final class SCPRepositoryPublisher extends Notifier {
 			// ~ Patched for env vars
 
 			for (Entry e : entries) {
+				if (!e.copyAfterFailure && cachedResult == Result.FAILURE) {
+					// build failed. don't post this file.
+					continue;
+				}
+
 				String expanded = Util.replaceMacro(e.sourceFile, envVars);
 				FilePath ws = build.getWorkspace();
 				FilePath[] src = ws.list(expanded);
+
+				String folderPath = Util.replaceMacro(e.filePath, envVars);
+
+				// Fix for recursive mkdirs
+				folderPath = folderPath.trim();
+
+				if (e.copyConsoleLog) {
+					AnnotatedLargeText logText;
+					final OutputStream out;
+					out = scpsite.createOutStream(folderPath, "console.log", logger, channel);
+					logText = build.getLogText();
+					logText.writeLogTo(0, out);
+					continue;
+				}
 				if (src.length == 0) {
 					// try to do error diagnostics
 					log(logger, ("No file(s) found: " + expanded));
@@ -180,10 +197,6 @@ public final class SCPRepositoryPublisher extends Notifier {
 						log(logger, error);
 					continue;
 				}
-				String folderPath = Util.replaceMacro(e.filePath, envVars);
-
-				// Fix for recursive mkdirs
-				folderPath = folderPath.trim();
 
 				// Making workspace to have the same path separators like in the
 				// FilePath objects
