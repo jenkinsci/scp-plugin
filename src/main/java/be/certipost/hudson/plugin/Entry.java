@@ -39,6 +39,46 @@ public final class Entry extends AbstractDescribableImpl<Entry> {
 		this.copyAfterFailure = copyAfterFailure;
 	}
 
+	public String getFilePath() {
+		return filePath;
+	}
+
+	public void setFilePath(String filePath) {
+		this.filePath = filePath;
+	}
+
+	public String getSourceFile() {
+		return sourceFile;
+	}
+
+	public void setSourceFile(String sourceFile) {
+		this.sourceFile = sourceFile;
+	}
+
+	public boolean getKeepHierarchy() {
+		return keepHierarchy;
+	}
+
+	public void setKeepHierarchy(boolean keepHierarchy) {
+		this.keepHierarchy = keepHierarchy;
+	}
+
+	public boolean getCopyConsoleLog() {
+		return copyConsoleLog;
+	}
+
+	public void setCopyConsoleLog(boolean copyConsoleLog) {
+		this.copyConsoleLog = copyConsoleLog;
+	}
+
+	public boolean getCopyAfterFailure() {
+		return copyAfterFailure;
+	}
+
+	public void setCopyAfterFailure(boolean copyAfterFailure) {
+		this.copyAfterFailure = copyAfterFailure;
+	}
+
 	@Extension
 	public static class DescriptorImpl extends Descriptor<Entry> {
 		@Override
