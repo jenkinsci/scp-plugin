@@ -23,15 +23,15 @@
         </f:entry>
         <f:entry title="Copy Console Log to Destination" field="copyConsoleLog"
           description="Check if we should write the Console Log to the Remote Desintation.">
-          <f:checkbox />
+          <f:checkbox checked="${e.copyConsoleLog}" />
         </f:entry>
         <f:entry title="Keep Hierarchy" field="keepHierarchy"
           description="Keep directory hierarchy relative to the workspace when copying to the remote destination.">
-          <f:checkbox />
+          <f:checkbox checked="${e.keepHierarchy}" />
         </f:entry>
         <f:entry title="Copy after failure" field="copyAfterFailure"
           description="Check if we should copy the source file to the remote destination after a build failure.">
-          <f:checkbox />
+          <f:checkbox checked="${e.copyAfterFailure}" />
         </f:entry>
         <f:entry title="">
           <div align="right">

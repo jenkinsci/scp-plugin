@@ -1,5 +1,9 @@
 package be.certipost.hudson.plugin;
 
+import hudson.Extension;
+import hudson.model.AbstractDescribableImpl;
+import hudson.model.Descriptor;
+
 import org.kohsuke.stapler.DataBoundConstructor;
 
 /**
@@ -7,7 +11,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
  * @author Ramil Israfilov
  *
  */
-public final class Entry {
+public final class Entry extends AbstractDescribableImpl<Entry> {
 
 	/**
 	 * Destination folder for the copy. May contain macros. 
@@ -34,5 +38,53 @@ public final class Entry {
 		this.keepHierarchy = keepHierarchy;
 		this.copyConsoleLog = copyConsoleLog;
 		this.copyAfterFailure = copyAfterFailure;
+	}
+
+	public String getFilePath() {
+		return filePath;
+	}
+
+	public void setFilePath(String filePath) {
+		this.filePath = filePath;
+	}
+
+	public String getSourceFile() {
+		return sourceFile;
+	}
+
+	public void setSourceFile(String sourceFile) {
+		this.sourceFile = sourceFile;
+	}
+
+	public boolean getKeepHierarchy() {
+		return keepHierarchy;
+	}
+
+	public void setKeepHierarchy(boolean keepHierarchy) {
+		this.keepHierarchy = keepHierarchy;
+	}
+
+	public boolean getCopyConsoleLog() {
+		return copyConsoleLog;
+	}
+
+	public void setCopyConsoleLog(boolean copyConsoleLog) {
+		this.copyConsoleLog = copyConsoleLog;
+	}
+
+	public boolean getCopyAfterFailure() {
+		return copyAfterFailure;
+	}
+
+	public void setCopyAfterFailure(boolean copyAfterFailure) {
+		this.copyAfterFailure = copyAfterFailure;
+	}
+
+	@Extension
+	public static class DescriptorImpl extends Descriptor<Entry> {
+		@Override
+		public String getDisplayName() {
+			return "";
+		}
 	}
 }
