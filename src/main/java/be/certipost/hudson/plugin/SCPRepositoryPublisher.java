@@ -25,9 +25,12 @@ import hudson.util.CopyOnWriteList;
 import hudson.util.DescribableList;
 import hudson.util.FormValidation;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.StringWriter;
 import java.io.PrintStream;
 import java.util.Iterator;
 import java.util.List;
@@ -183,10 +186,21 @@ public final class SCPRepositoryPublisher extends Notifier {
 
 				if (e.copyConsoleLog) {
 					AnnotatedLargeText logText;
+					final StringWriter strWriter;
 					final OutputStream out;
-					out = scpsite.createOutStream(folderPath, "console.log", logger, channel);
+					final BufferedWriter writer;
+					strWriter = new StringWriter();
+					out = scpsite.createOutStream(folderPath, "console.html", logger, channel);
+					writer = new BufferedWriter(new OutputStreamWriter(out));
+
+					strWriter.write("<pre>\n");
 					logText = build.getLogText();
-					logText.writeLogTo(0, out);
+					logText.writeHtmlTo(0, strWriter);
+					writer.write(strWriter.toString());
+					writer.write(build.getResult().toString());
+					writer.write("</pre>\n");
+					writer.flush();
+					writer.close();
 					continue;
 				}
 				if (src.length == 0) {
