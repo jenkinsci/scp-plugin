@@ -32,6 +32,8 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
 import java.io.PrintStream;
+import java.lang.Runnable;
+import java.lang.Thread;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -149,6 +151,7 @@ public final class SCPRepositoryPublisher extends Notifier {
 		PrintStream logger = listener.getLogger();
 		Session session = null;
 		ChannelSftp channel = null;
+		boolean delaySessionClose = false;
 		try {
 			scpsite = getSite();
 			if (scpsite == null) {
@@ -185,22 +188,33 @@ public final class SCPRepositoryPublisher extends Notifier {
 				folderPath = folderPath.trim();
 
 				if (e.copyConsoleLog) {
-					AnnotatedLargeText logText;
-					final StringWriter strWriter;
 					final OutputStream out;
 					final BufferedWriter writer;
-					strWriter = new StringWriter();
-					out = scpsite.createOutStream(folderPath, "console.html", logger, channel);
-					writer = new BufferedWriter(new OutputStreamWriter(out));
+					final Thread consoleWriterThread;
+					final Session consoleSession;
+					final ChannelSftp consoleChannel;
+					if (entries.size() > 1) {
+						// If we are copying more than the console log
+						// we need a separate connection for the console
+						// log due to threading/lock issues.
+						consoleSession = scpsite.createSession(null);
+						consoleChannel = scpsite.createChannel(null, consoleSession);
+					}
+					else {
+						// Otherwise use the existing connection.
+						consoleSession = session;
+						consoleChannel = channel;
+						delaySessionClose = true;
+					}
 
-					strWriter.write("<pre>\n");
-					logText = build.getLogText();
-					logText.writeHtmlTo(0, strWriter);
-					writer.write(strWriter.toString());
-					writer.write(build.getResult().toString());
-					writer.write("</pre>\n");
-					writer.flush();
-					writer.close();
+					out = scpsite.createOutStream(folderPath,
+						"console.html", logger, consoleChannel);
+					writer = new BufferedWriter(new OutputStreamWriter(out));
+					consoleWriterThread = new Thread(new consoleRunnable(
+						build, scpsite, consoleSession, consoleChannel, writer));
+					log(logger, "Copying console log.");
+					consoleWriterThread.start();
+
 					continue;
 				}
 				if (src.length == 0) {
@@ -256,7 +270,7 @@ public final class SCPRepositoryPublisher extends Notifier {
 			e.printStackTrace(listener.error("Failed to upload files"));
 			build.setResult(Result.UNSTABLE);
 		} finally {
-			if (scpsite != null) {
+			if (scpsite != null && !delaySessionClose) {
 				scpsite.closeSession(logger, session, channel);
 			}
 
@@ -377,5 +391,58 @@ public final class SCPRepositoryPublisher extends Notifier {
 	protected void log(final PrintStream logger, final String message) {
 		logger.println(StringUtils.defaultString(DESCRIPTOR.getShortName())
 				+ message);
+	}
+
+	private class consoleRunnable implements Runnable {
+		private final AbstractBuild build;
+		private final SCPSite scpsite;
+		private final Session session;
+		private final ChannelSftp channel;
+		private final BufferedWriter writer;
+
+		consoleRunnable(AbstractBuild build, SCPSite scpsite, Session session,
+				ChannelSftp channel, BufferedWriter writer) {
+			this.build = build;
+			this.scpsite = scpsite;
+			this.session = session;
+			this.channel = channel;
+			this.writer = writer;
+		}
+
+		public void run () {
+			AnnotatedLargeText logText;
+			final StringWriter strWriter;
+			strWriter = new StringWriter();
+			long pos = 0;
+
+			try {
+				strWriter.write("<pre>\n");
+				do {
+					logText = build.getLogText();
+					// Use strWriter as temp storage because
+					// writeHTMLTo closes the stream.
+					pos = logText.writeHtmlTo(pos, strWriter);
+					writer.write(strWriter.toString());
+					strWriter.getBuffer().setLength(0);
+					if(!logText.isComplete()) {
+						// Yield to other threads while we wait
+						// for more data.
+						try {
+							Thread.sleep(500);
+						} catch (InterruptedException e) {
+							// Ignore and try reading again.
+						}
+					}
+				} while(!logText.isComplete());
+				writer.write("</pre>\n");
+
+				writer.flush();
+				writer.close();
+			} catch (IOException e) {
+				//Ignore the error not much we can do about it.
+			} finally {
+				scpsite.closeSession(null, session, channel);
+			}
+		}
 	}
 }
