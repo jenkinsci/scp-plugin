@@ -181,12 +181,7 @@ public final class SCPRepositoryPublisher extends Notifier {
 					continue;
 				}
 
-				String expanded = Util.replaceMacro(e.sourceFile, envVars);
-				FilePath ws = build.getWorkspace();
-				FilePath[] src = ws.list(expanded);
-
 				String folderPath = Util.replaceMacro(e.filePath, envVars);
-
 				// Fix for recursive mkdirs
 				folderPath = folderPath.trim();
 
@@ -220,6 +215,16 @@ public final class SCPRepositoryPublisher extends Notifier {
 
 					continue;
 				}
+
+				String expanded = Util.replaceMacro(e.sourceFile, envVars);
+				FilePath ws = build.getWorkspace();
+				if (ws == null) {
+					log(logger, "No workspace found, files cannot be copied. " +
+					    "Probably an error communicating with slave.");
+					continue;
+				}
+				FilePath[] src = ws.list(expanded);
+
 				if (src.length == 0) {
 					// try to do error diagnostics
 					log(logger, ("No file(s) found: " + expanded));
@@ -276,7 +281,6 @@ public final class SCPRepositoryPublisher extends Notifier {
 			if (scpsite != null && !delaySessionClose) {
 				scpsite.closeSession(logger, session, channel);
 			}
-
 		}
 
 		return true;
