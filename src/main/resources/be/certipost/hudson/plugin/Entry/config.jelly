@@ -5,11 +5,17 @@
   <f:entry title="${%Destination}" field="filePath">
     <f:textbox/>
   </f:entry>
-  <f:entry>
-    <label>
-      <f:checkbox field="keepHierarchy" />
-      ${%Keep Hierarchy}
-    </label>
+  <f:entry title="Copy Console Log to Destination" field="copyConsoleLog"
+    description="Check if we should write the Console Log to the Remote Desintation.">
+    <f:checkbox />
+  </f:entry>
+  <f:entry title="Keep Hierarchy" field="keepHierarchy"
+    description="Keep directory hierarchy relative to the workspace when copying to the remote destination.">
+    <f:checkbox />
+  </f:entry>
+  <f:entry title="Copy after failure" field="copyAfterFailure"
+    description="Check if we should copy the source file to the remote destination after a build failure.">
+    <f:checkbox />
   </f:entry>
   <f:entry>
     <div align="right">

@@ -16,6 +16,7 @@ import hudson.util.DescribableList;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Map;
 import java.util.logging.Level;
@@ -199,14 +200,13 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
 
 	}
 
-	public void upload(String folderPath, FilePath filePath, boolean keepHierarchy,
-			Map<String, String> envVars, PrintStream logger, ChannelSftp channel)
-			throws IOException, InterruptedException, SftpException {
-		// if ( session == null ||
+	public OutputStream createOutStream(String folderPath, String fileName, PrintStream logger, ChannelSftp channel)
+			throws IOException, SftpException {
 		if (channel == null) {
 			throw new IOException("Connection to " + hostname + ", user="
 					+ username + " is not established");
 		}
+
 		SftpATTRS rootdirstat = channel.stat(rootRepositoryPath);
 		if (rootdirstat == null) {
 			throw new IOException(
@@ -218,6 +218,33 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
 						+ " is not a directory");
 			}
 		}
+
+		mkdirs(folderPath, logger, channel);
+		String strTmp = concatDir(folderPath, fileName);
+		String strNewFilename = concatDir(rootRepositoryPath, strTmp);
+		return channel.put(strNewFilename);
+	}
+
+	public void upload(String folderPath, FilePath filePath, boolean keepHierarchy,
+			Map<String, String> envVars, PrintStream logger, ChannelSftp channel)
+			throws IOException, InterruptedException, SftpException {
+		if (channel == null) {
+			throw new IOException("Connection to " + hostname + ", user="
+					+ username + " is not established");
+		}
+
+		SftpATTRS rootdirstat = channel.stat(rootRepositoryPath);
+		if (rootdirstat == null) {
+			throw new IOException(
+					"Can't get stat of root repository directory:"
+							+ rootRepositoryPath);
+		} else {
+			if (!rootdirstat.isDir()) {
+				throw new IOException(rootRepositoryPath
+						+ " is not a directory");
+			}
+		}
+
 		if (filePath.isDirectory()) {
 			FilePath[] subfiles = filePath.list("**/*");
 			if (subfiles != null) {
@@ -230,31 +257,31 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
 			String localfilename = filePath.getName();
 			mkdirs(folderPath, logger, channel);
 
-            String strNewFilename;
-            if (keepHierarchy) {
-                // Fix for mkdirs
-                String strWorkspacePath = envVars.get("strWorkspacePath");
-                String strRelativePath = extractRelativePath(strWorkspacePath,
-                        filePath, logger);
+			String strNewFilename;
+			if (keepHierarchy) {
+				// Fix for mkdirs
+				String strWorkspacePath = envVars.get("strWorkspacePath");
+				String strRelativePath = extractRelativePath(strWorkspacePath,
+					filePath, logger);
 
-                String strTmp = concatDir(folderPath, strRelativePath);
-                String strNewPath = concatDir(rootRepositoryPath, strTmp);
-                if (!strRelativePath.equals("")) {
-                    // System.out.println("SCPSite.upload()   mkdirs(strTmp = "
-                    // + strTmp);
-                    // Make subdirs
-                    mkdirs(strTmp, logger, channel);
-                }
+				String strTmp = concatDir(folderPath, strRelativePath);
+				String strNewPath = concatDir(rootRepositoryPath, strTmp);
+				if (!strRelativePath.equals("")) {
+					// System.out.println("SCPSite.upload()   mkdirs(strTmp = "
+					// + strTmp);
+					// Make subdirs
+					mkdirs(strTmp, logger, channel);
+				}
 
-                if (!strNewPath.endsWith("/")) {
-                    strNewPath += "/";
-                }
+				if (!strNewPath.endsWith("/")) {
+					strNewPath += "/";
+				}
 
-                strNewFilename = strNewPath + localfilename;
-            } else {
-                String strTmp = concatDir(folderPath, localfilename);
-                strNewFilename = concatDir(rootRepositoryPath, strTmp);
-            }
+				strNewFilename = strNewPath + localfilename;
+			} else {
+				String strTmp = concatDir(folderPath, localfilename);
+				strNewFilename = concatDir(rootRepositoryPath, strTmp);
+			}
 
 			log(logger, "uploading file: '" + strNewFilename + "'");
 			InputStream in = filePath.read();
@@ -370,41 +397,41 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
 		return nodeProperties;
 	}
 
-    @Extension
-    public static class DescriptorImpl extends Descriptor<SCPSite> {
-        @Override
-        public String getDisplayName() {
-            return "";
+	@Extension
+	public static class DescriptorImpl extends Descriptor<SCPSite> {
+		@Override
+		public String getDisplayName() {
+			return "";
+		}
+
+		public FormValidation doCheckKeyfile(@QueryParameter String keyfile) {
+			keyfile = Util.fixEmpty(keyfile);
+			if (keyfile != null) {
+				File f = new File(keyfile);
+				if (!f.isFile()) {
+					return FormValidation.error(Messages.SCPRepositoryPublisher_KeyFileNotExist());
+				}
+			}
+
+			return FormValidation.ok();
         }
 
-        public FormValidation doCheckKeyfile(@QueryParameter String keyfile) {
-            keyfile = Util.fixEmpty(keyfile);
-            if (keyfile != null) {
-                File f = new File(keyfile);
-                if (!f.isFile()) {
-                    return FormValidation.error(Messages.SCPRepositoryPublisher_KeyFileNotExist());
-                }
-            }
-
-            return FormValidation.ok();
-        }
-
-        public FormValidation doLoginCheck(@QueryParameter String hostname, @QueryParameter String port, @QueryParameter String username, @QueryParameter String password, @QueryParameter String keyfile) {
-            hostname = Util.fixEmpty(hostname);
-            if (hostname == null) {// hosts is not entered yet
-                return FormValidation.ok();
-            }
-            SCPSite site = new SCPSite("", hostname, port, username, password, keyfile);
-            try {
-                Session session = site.createSession(new PrintStream(
-                        System.out));
-                site.closeSession(new PrintStream(System.out), session,
-                        null);
-            } catch (JSchException e) {
-                LOGGER.log(Level.SEVERE, e.getMessage(), e);
-                return FormValidation.error(e,Messages.SCPRepositoryPublisher_NotConnect());
-            }
-            return FormValidation.ok("Success!");
-        }
-    }
+		public FormValidation doLoginCheck(@QueryParameter String hostname, @QueryParameter String port, @QueryParameter String username, @QueryParameter String password, @QueryParameter String keyfile) {
+			hostname = Util.fixEmpty(hostname);
+			if (hostname == null) {// hosts is not entered yet
+				return FormValidation.ok();
+			}
+			SCPSite site = new SCPSite("", hostname, port, username, password, keyfile);
+			try {
+				Session session = site.createSession(new PrintStream(
+					System.out));
+				site.closeSession(new PrintStream(System.out), session,
+					null);
+			} catch (JSchException e) {
+				LOGGER.log(Level.SEVERE, e.getMessage(), e);
+				return FormValidation.error(e,Messages.SCPRepositoryPublisher_NotConnect());
+			}
+			return FormValidation.ok("Success!");
+		}
+	}
 }

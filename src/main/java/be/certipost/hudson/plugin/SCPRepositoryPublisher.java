@@ -5,6 +5,7 @@ import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
 import hudson.Util;
+import hudson.console.AnnotatedLargeText;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.BuildListener;
@@ -24,9 +25,15 @@ import hudson.util.CopyOnWriteList;
 import hudson.util.DescribableList;
 import hudson.util.FormValidation;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.StringWriter;
 import java.io.PrintStream;
+import java.lang.Runnable;
+import java.lang.Thread;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -64,18 +71,18 @@ public final class SCPRepositoryPublisher extends Notifier {
 
 	private final List<Entry> entries;
 
-    @DataBoundConstructor
-    public SCPRepositoryPublisher(String siteName, List<Entry> entries) {
-        if (siteName == null) {
-            // defaults to the first one
-            SCPSite[] sites = DESCRIPTOR.getSites();
+	@DataBoundConstructor
+	public SCPRepositoryPublisher(String siteName, List<Entry> entries) {
+		if (siteName == null) {
+			// defaults to the first one
+			SCPSite[] sites = DESCRIPTOR.getSites();
 			if (sites.length > 0) {
-                siteName = sites[0].getName();
-            }
-        }
-        this.entries = entries;
-        this.siteName = siteName;
-    }
+				siteName = sites[0].getName();
+			}
+		}
+		this.entries = entries;
+		this.siteName = siteName;
+	}
 
 	public List<Entry> getEntries() {
 		return entries;
@@ -141,16 +148,13 @@ public final class SCPRepositoryPublisher extends Notifier {
 	@Override
 	public boolean perform(AbstractBuild<?, ?> build, Launcher launcher,
 			BuildListener listener) throws InterruptedException, IOException {
-
-		if (build.getResult() == Result.FAILURE) {
-			// build failed. don't post
-			return true;
-		}
-
+		final Result cachedResult;
+		cachedResult = build.getResult();
 		SCPSite scpsite = null;
 		PrintStream logger = listener.getLogger();
 		Session session = null;
 		ChannelSftp channel = null;
+		boolean delaySessionClose = false;
 		try {
 			scpsite = getSite();
 			if (scpsite == null) {
@@ -172,9 +176,55 @@ public final class SCPRepositoryPublisher extends Notifier {
 			// ~ Patched for env vars
 
 			for (Entry e : entries) {
+				if (!e.copyAfterFailure && cachedResult == Result.FAILURE) {
+					// build failed. don't post this file.
+					continue;
+				}
+
+				String folderPath = Util.replaceMacro(e.filePath, envVars);
+				// Fix for recursive mkdirs
+				folderPath = folderPath.trim();
+
+				if (e.copyConsoleLog) {
+					final OutputStream out;
+					final BufferedWriter writer;
+					final Thread consoleWriterThread;
+					final Session consoleSession;
+					final ChannelSftp consoleChannel;
+					if (entries.size() > 1) {
+						// If we are copying more than the console log
+						// we need a separate connection for the console
+						// log due to threading/lock issues.
+						consoleSession = scpsite.createSession(null);
+						consoleChannel = scpsite.createChannel(null, consoleSession);
+					}
+					else {
+						// Otherwise use the existing connection.
+						consoleSession = session;
+						consoleChannel = channel;
+						delaySessionClose = true;
+					}
+
+					out = scpsite.createOutStream(folderPath,
+						"console.html", logger, consoleChannel);
+					writer = new BufferedWriter(new OutputStreamWriter(out));
+					consoleWriterThread = new Thread(new consoleRunnable(
+						build, scpsite, consoleSession, consoleChannel, writer));
+					log(logger, "Copying console log.");
+					consoleWriterThread.start();
+
+					continue;
+				}
+
 				String expanded = Util.replaceMacro(e.sourceFile, envVars);
 				FilePath ws = build.getWorkspace();
+				if (ws == null) {
+					log(logger, "No workspace found, files cannot be copied. " +
+					    "Probably an error communicating with slave.");
+					continue;
+				}
 				FilePath[] src = ws.list(expanded);
+
 				if (src.length == 0) {
 					// try to do error diagnostics
 					log(logger, ("No file(s) found: " + expanded));
@@ -183,10 +233,6 @@ public final class SCPRepositoryPublisher extends Notifier {
 						log(logger, error);
 					continue;
 				}
-				String folderPath = Util.replaceMacro(e.filePath, envVars);
-
-				// Fix for recursive mkdirs
-				folderPath = folderPath.trim();
 
 				// Making workspace to have the same path separators like in the
 				// FilePath objects
@@ -232,10 +278,9 @@ public final class SCPRepositoryPublisher extends Notifier {
 			e.printStackTrace(listener.error("Failed to upload files"));
 			build.setResult(Result.UNSTABLE);
 		} finally {
-			if (scpsite != null) {
+			if (scpsite != null && !delaySessionClose) {
 				scpsite.closeSession(logger, session, channel);
 			}
-
 		}
 
 		return true;
@@ -288,13 +333,13 @@ public final class SCPRepositoryPublisher extends Notifier {
 			return true;
 		}
 
-        public ListBoxModel doFillSiteNameItems() {
-            ListBoxModel model = new ListBoxModel();
-            for (SCPSite site : getSites()) {
-                model.add(site.getName());
-            }
-            return model;
-        }
+		public ListBoxModel doFillSiteNameItems() {
+			ListBoxModel model = new ListBoxModel();
+			for (SCPSite site : getSites()) {
+				model.add(site.getName());
+			}
+			return model;
+		}
 	}
 
 	public String getSiteName() {
@@ -308,5 +353,58 @@ public final class SCPRepositoryPublisher extends Notifier {
 	protected void log(final PrintStream logger, final String message) {
 		logger.println(StringUtils.defaultString(DESCRIPTOR.getShortName())
 				+ message);
+	}
+
+	private class consoleRunnable implements Runnable {
+		private final AbstractBuild build;
+		private final SCPSite scpsite;
+		private final Session session;
+		private final ChannelSftp channel;
+		private final BufferedWriter writer;
+
+		consoleRunnable(AbstractBuild build, SCPSite scpsite, Session session,
+				ChannelSftp channel, BufferedWriter writer) {
+			this.build = build;
+			this.scpsite = scpsite;
+			this.session = session;
+			this.channel = channel;
+			this.writer = writer;
+		}
+
+		public void run () {
+			AnnotatedLargeText logText;
+			final StringWriter strWriter;
+			strWriter = new StringWriter();
+			long pos = 0;
+
+			try {
+				strWriter.write("<pre>\n");
+				do {
+					logText = build.getLogText();
+					// Use strWriter as temp storage because
+					// writeHTMLTo closes the stream.
+					pos = logText.writeHtmlTo(pos, strWriter);
+					writer.write(strWriter.toString());
+					strWriter.getBuffer().setLength(0);
+					if(!logText.isComplete()) {
+						// Yield to other threads while we wait
+						// for more data.
+						try {
+							Thread.sleep(500);
+						} catch (InterruptedException e) {
+							// Ignore and try reading again.
+						}
+					}
+				} while(!logText.isComplete());
+				writer.write("</pre>\n");
+
+				writer.flush();
+				writer.close();
+			} catch (IOException e) {
+				//Ignore the error not much we can do about it.
+			} finally {
+				scpsite.closeSession(null, session, channel);
+			}
+		}
 	}
 }
