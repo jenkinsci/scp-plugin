@@ -6,14 +6,14 @@ import hudson.model.Descriptor;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 /**
- * 
+ *
  * @author Ramil Israfilov
  *
  */
 public final class Entry extends AbstractDescribableImpl<Entry> {
 
     /**
-     * Destination folder for the copy. May contain macros. 
+     * Destination folder for the copy. May contain macros.
      */
     public String filePath;
 
