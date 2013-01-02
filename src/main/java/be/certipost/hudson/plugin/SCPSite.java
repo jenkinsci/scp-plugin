@@ -32,6 +32,7 @@ import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
 import com.jcraft.jsch.UserInfo;
 import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.DataBoundConstructor;
 
 /**
  *
@@ -50,22 +51,10 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
     public static final Logger LOGGER = Logger.getLogger(SCPSite.class
             .getName());
 
-    public SCPSite() {
-
-    }
-
-    public SCPSite(String displayname, String hostname, int port, String username, String password,
-            String rootRepositoryPath) {
-        this.displayname = displayname;
-        this.hostname = hostname;
-        this.port = port;
-        this.username = username;
-        this.password = password;
-        this.rootRepositoryPath = rootRepositoryPath.trim();
-    }
-
-    public SCPSite(String displayname, String hostname, String port, String username,
-            String password) {
+    @DataBoundConstructor
+    public SCPSite(String displayname, String hostname, String port,
+                   String username, String password, String keyfile,
+                   String rootRepositoryPath) {
         this.displayname = displayname;
         this.hostname = hostname;
         try {
@@ -75,13 +64,10 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
         }
         this.username = username;
         this.password = password;
-    }
-
-    public SCPSite(String displayname, String hostname, String port, String username,
-            String passphrase, String keyfile) {
-        this(displayname, hostname, port, username, passphrase);
-
         this.keyfile = keyfile;
+        if (rootRepositoryPath != null) {
+            this.rootRepositoryPath = rootRepositoryPath.trim();
+        }
     }
 
     public String getKeyfile() {
@@ -394,7 +380,7 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
             if (hostname == null) {// hosts is not entered yet
                 return FormValidation.ok();
             }
-            SCPSite site = new SCPSite("", hostname, port, username, password, keyfile);
+            SCPSite site = new SCPSite("", hostname, port, username, password, keyfile, "");
             try {
                 Session session = site.createSession(new PrintStream(
                         System.out));

@@ -283,7 +283,8 @@ public final class SCPRepositoryPublisher extends Notifier {
 
         @Override
         public boolean configure(StaplerRequest req, JSONObject formData) {
-            sites.replaceBy(req.bindParametersToList(SCPSite.class, "scp."));
+            sites.replaceBy(req.bindJSONToList(SCPSite.class,
+                                               formData.get("sites")));
             save();
             return true;
         }
