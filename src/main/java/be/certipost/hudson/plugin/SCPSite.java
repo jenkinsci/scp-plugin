@@ -226,8 +226,6 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
                 String strTmp = concatDir(folderPath, strRelativePath);
                 String strNewPath = concatDir(rootRepositoryPath, strTmp);
                 if (!strRelativePath.equals("")) {
-                    // System.out.println("SCPSite.upload()   mkdirs(strTmp = "
-                    // + strTmp);
                     // Make subdirs
                     mkdirs(strTmp, logger, channel);
                 }
@@ -311,8 +309,6 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
         } else {
             strTmp = folderPath + "/" + strRelativePath;
         }
-
-        // System.out.println("SCPSite.concatDir()strTmp = " + strTmp);
 
         return strTmp;
     }

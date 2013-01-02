@@ -108,14 +108,9 @@ public final class SCPRepositoryPublisher extends Notifier {
     public static EnvVars getEnvVars() {
         DescribableList<NodeProperty<?>, NodePropertyDescriptor> nodeProperties = getNodeProperties();
 
-        // System.out.println(".getEnvVars()Computer.currentComputer() = "+Computer.currentComputer()+
-        // "nodeProperties = "+nodeProperties);
-
         Iterator<NodeProperty<?>> iterator = nodeProperties.iterator();
         while (iterator.hasNext()) {
             NodeProperty<?> next = iterator.next();
-            // System.out.println(".getEnvVars()Computer.currentComputer() = "+Computer.currentComputer()+" next = "
-            // + next);
             if (next instanceof EnvironmentVariablesNodeProperty) {
                 EnvironmentVariablesNodeProperty envVarProp = (EnvironmentVariablesNodeProperty) next;
                 EnvVars envVars = envVarProp.getEnvVars();
@@ -196,28 +191,17 @@ public final class SCPRepositoryPublisher extends Notifier {
                 if (strFirstFile.indexOf('\\') >= 0) {
                     strWorkspacePath = strWorkspacePath.replace('/', '\\');
                 } else {
-                    strWorkspacePath = strWorkspacePath.replace('\\', '/');// Linux
+                    strWorkspacePath = strWorkspacePath.replace('\\', '/');
                     // Unix
                 }
 
-                // System.out
-                // .println("SCPRepositoryPublisher.perform()strWorkspacePath = "
-                // + strWorkspacePath);
                 envVars.put("strWorkspacePath", strWorkspacePath);
                 // ~Fix for recursive mkdirs
 
                 if (src.length == 1) {
-                    // log(logger, "remote folderPath '" + folderPath
-                    // + "',local file:'" + src[0].getName() + "'");
-                    // System.out.println("remote folderPath '" + folderPath
-                    // + "',local file:'" + src[0].getName() + "'");
                     scpsite.upload(folderPath, src[0], e.keepHierarchy, envVars, logger, channel);
                 } else {
                     for (FilePath s : src) {
-                        // System.out.println("remote folderPath '" + folderPath
-                        // + "',local file:'" + s.getName() + "'");
-                        // log(logger, "remote folderPath '" + folderPath
-                        // + "',local file:'" + s.getName() + "'");
                         scpsite.upload(folderPath, s, e.keepHierarchy, envVars, logger, channel);
                     }
                 }
