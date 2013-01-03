@@ -102,7 +102,7 @@ public final class SCPRepositoryPublisher extends Notifier {
     }
 
     public BuildStepMonitor getRequiredMonitorService() {
-        return BuildStepMonitor.BUILD;
+        return BuildStepMonitor.NONE;
     }
 
     /**
