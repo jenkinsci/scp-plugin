@@ -302,13 +302,20 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
                 if (dirstat == null) {
                     // try to create dir
                     log(logger, "Trying to create " + curdir + "/"
-                            + pathnames[i]);
-                    channel.mkdir(curdir + "/" + pathnames[i]);
-                } else {
-                    if (!dirstat.isDir()) {
-                        throw new IOException(curdir + "/" + pathnames[i]
-                                + " is not a directory:" + dirstat);
+                        + pathnames[i]);
+                    try {
+                        channel.mkdir(curdir + "/" + pathnames[i]);
+                    } catch (SftpException e) {
+                        // The dir may have been created by another scp
+                        // connection. If the mkdir fails check if the dir
+                        // exists. If it does not exist stat should throw an
+                        // exception.
                     }
+                    dirstat = channel.stat(curdir + "/" + pathnames[i]);
+                }
+                if (!dirstat.isDir()) {
+                    throw new IOException(curdir + "/" + pathnames[i]
+                                          + " is not a directory:" + dirstat);
                 }
                 curdir = curdir + "/" + pathnames[i];
             }
