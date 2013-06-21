@@ -1,7 +1,7 @@
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
 
     <f:entry title="${%SCP site}" field="siteName"
-            description="Select configured SCP host.Check global hudson config for defining connection properties for this hosts">
+            description="Select configured SCP host. Check global Jenkins config for defining connection properties for this host.">
       <f:select />
     </f:entry>
 

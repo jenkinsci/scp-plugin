@@ -1,5 +1,5 @@
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
-  <f:entry title="${%Displayname}" field="displayname">
+  <f:entry title="${%Display Name}" field="displayname">
     <f:textbox />
   </f:entry>
   <f:entry title="${%Hostname}" field="hostname">
@@ -20,7 +20,7 @@
   <f:entry title="${%Keyfile}" field="keyfile">
     <f:textbox />
   </f:entry>
-  
+
   <f:entry>
     <f:validateButton title="${%Test Connection}" method="loginCheck" with="hostname,port,username,password,keyfile" />
   </f:entry>
