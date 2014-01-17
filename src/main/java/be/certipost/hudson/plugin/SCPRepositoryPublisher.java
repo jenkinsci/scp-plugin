@@ -150,6 +150,7 @@ public final class SCPRepositoryPublisher extends Notifier {
         PrintStream logger = listener.getLogger();
         Session session = null;
         ChannelSftp channel = null;
+        Object syncObj = new Object();
 
         try {
             scpsite = getSite();
@@ -197,10 +198,15 @@ public final class SCPRepositoryPublisher extends Notifier {
                 if (e.copyConsoleLog) {
                     // copy console log
                     final Thread consoleWriterThread;
-                    consoleWriterThread = new Thread(new consoleRunnable(build, scpsite, folderPath, logger));
+                    consoleWriterThread = new Thread(new consoleRunnable(build, scpsite, folderPath, logger, syncObj));
                     log(logger, "Copying console log.");
                     consoleWriterThread.start();
 
+                    // wait for consoleWriter to create console log file
+                    synchronized(syncObj)
+                    {
+                        syncObj.wait();
+                    }
                     continue;
                 }
                 // copy files other than console log
@@ -254,6 +260,7 @@ public final class SCPRepositoryPublisher extends Notifier {
         } catch (SftpException e) {
             e.printStackTrace(listener.error("Failed to upload files"));
             build.setResult(Result.UNSTABLE);
+        } catch (InterruptedException ie) {
         } finally {
             if (scpsite != null) {
                 scpsite.closeSession(logger, session, channel);
@@ -339,12 +346,14 @@ public final class SCPRepositoryPublisher extends Notifier {
         private final SCPSite scpsite;
         private final String path;
         private final PrintStream logger;
+        private final Object syncObj;
 
-        consoleRunnable(AbstractBuild build, SCPSite scpsite, String path, PrintStream logger) {
+        consoleRunnable(AbstractBuild build, SCPSite scpsite, String path, PrintStream logger, Object syncObj) {
             this.build = build;
             this.scpsite = scpsite;
             this.path = path;
             this.logger = logger;
+            this.syncObj = syncObj;
         }
 
         public void run () {
@@ -363,6 +372,11 @@ public final class SCPRepositoryPublisher extends Notifier {
                 channel = scpsite.createChannel(logger, session);
                 out = scpsite.createOutStream(path, "console.html", logger, channel);
                 writer = new BufferedWriter(new OutputStreamWriter(out));
+                // notify parent thread after creation of console log
+                synchronized(syncObj)
+                {
+                    syncObj.notify();
+                }
 
                 do {
                     logText = build.getLogText();
