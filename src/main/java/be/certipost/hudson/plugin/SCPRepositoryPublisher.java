@@ -260,7 +260,9 @@ public final class SCPRepositoryPublisher extends Notifier {
         } catch (SftpException e) {
             e.printStackTrace(listener.error("Failed to upload files"));
             build.setResult(Result.UNSTABLE);
-        } catch (InterruptedException ie) {
+        } catch (InterruptedException e) {
+            e.printStackTrace(listener.error("Files  to upload files"));
+            build.setResult(Result.UNSTABLE);
         } finally {
             if (scpsite != null) {
                 scpsite.closeSession(logger, session, channel);
