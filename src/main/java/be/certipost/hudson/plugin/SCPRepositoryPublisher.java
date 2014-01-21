@@ -361,7 +361,6 @@ public final class SCPRepositoryPublisher extends Notifier {
         public void run () {
             AnnotatedLargeText logText;
             final StringWriter strWriter;
-            strWriter = new StringWriter();
             long pos = 0;
             Session session = null;
             ChannelSftp channel = null;
@@ -369,17 +368,21 @@ public final class SCPRepositoryPublisher extends Notifier {
             BufferedWriter writer = null;
 
             try {
-                strWriter.write("<pre>\n");
-                session = scpsite.createSession(logger);
-                channel = scpsite.createChannel(logger, session);
-                out = scpsite.createOutStream(path, "console.html", logger, channel);
-                writer = new BufferedWriter(new OutputStreamWriter(out));
-                // notify parent thread after creation of console log
-                synchronized(syncObj)
-                {
-                    syncObj.notify();
+                try {
+                    session = scpsite.createSession(logger);
+                    channel = scpsite.createChannel(logger, session);
+                    out = scpsite.createOutStream(path, "console.html", logger, channel);
+                } finally {
+                    // notify parent thread after creation of console log
+                    synchronized(syncObj)
+                    {
+                        syncObj.notify();
+                    }
                 }
+                writer = new BufferedWriter(new OutputStreamWriter(out));
 
+                strWriter = new StringWriter();
+                strWriter.write("<pre>\n");
                 do {
                     logText = build.getLogText();
                     // Use strWriter as temp storage because
