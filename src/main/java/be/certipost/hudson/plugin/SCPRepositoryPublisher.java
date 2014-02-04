@@ -150,7 +150,8 @@ public final class SCPRepositoryPublisher extends Notifier {
         PrintStream logger = listener.getLogger();
         Session session = null;
         ChannelSftp channel = null;
-        boolean delaySessionClose = false;
+        Object syncObj = new Object();
+
         try {
             scpsite = getSite();
             if (scpsite == null) {
@@ -159,9 +160,6 @@ public final class SCPRepositoryPublisher extends Notifier {
                 build.setResult(Result.UNSTABLE);
                 return true;
             }
-            log(logger, "Connecting to " + scpsite.getHostname());
-            session = scpsite.createSession(logger);
-            channel = scpsite.createChannel(logger, session);
 
             Map<String, String> envVars = build.getEnvironment(listener);
             // Patched for env vars
@@ -170,6 +168,22 @@ public final class SCPRepositoryPublisher extends Notifier {
                 envVars.putAll(objNodeEnvVars);
             }
             // ~ Patched for env vars
+
+            // check whether scp is configured to copy console log
+            boolean copyLog = false;
+            for (Entry e : entries) {
+                if (e.copyConsoleLog) {
+                    copyLog = true;
+                    break;
+                }
+            }
+            // create this session only if scp is configured to upload more than just
+            // the console log.  the console log upload requires a seperate session
+            if (!(entries.size() == 1 && copyLog)) {
+                log(logger, "Connecting to " + scpsite.getHostname());
+                session = scpsite.createSession(logger);
+                channel = scpsite.createChannel(logger, session);
+            }
 
             for (Entry e : entries) {
                 if (!e.copyAfterFailure && cachedResult == Result.FAILURE) {
@@ -182,35 +196,20 @@ public final class SCPRepositoryPublisher extends Notifier {
                 folderPath = folderPath.trim();
 
                 if (e.copyConsoleLog) {
-                    final OutputStream out;
-                    final BufferedWriter writer;
+                    // copy console log
                     final Thread consoleWriterThread;
-                    final Session consoleSession;
-                    final ChannelSftp consoleChannel;
-                    if (entries.size() > 1) {
-                        // If we are copying more than the console log
-                        // we need a separate connection for the console
-                        // log due to threading/lock issues.
-                        consoleSession = scpsite.createSession(null);
-                        consoleChannel = scpsite.createChannel(null, consoleSession);
-                    }
-                    else {
-                        // Otherwise use the existing connection.
-                        consoleSession = session;
-                        consoleChannel = channel;
-                        delaySessionClose = true;
-                    }
-
-                    out = scpsite.createOutStream(folderPath,
-                                                  "console.html", logger, consoleChannel);
-                    writer = new BufferedWriter(new OutputStreamWriter(out));
-                    consoleWriterThread = new Thread(new consoleRunnable(
-                                                                         build, scpsite, consoleSession, consoleChannel, writer));
+                    consoleWriterThread = new Thread(new consoleRunnable(build, scpsite, folderPath, logger, syncObj));
                     log(logger, "Copying console log.");
                     consoleWriterThread.start();
 
+                    // wait for consoleWriter to create console log file
+                    synchronized(syncObj)
+                    {
+                        syncObj.wait();
+                    }
                     continue;
                 }
+                // copy files other than console log
                 String expanded = Util.replaceMacro(e.sourceFile, envVars);
                 FilePath ws = build.getWorkspace();
                 if (ws == null) {
@@ -261,8 +260,11 @@ public final class SCPRepositoryPublisher extends Notifier {
         } catch (SftpException e) {
             e.printStackTrace(listener.error("Failed to upload files"));
             build.setResult(Result.UNSTABLE);
+        } catch (InterruptedException e) {
+            e.printStackTrace(listener.error("Files  to upload files"));
+            build.setResult(Result.UNSTABLE);
         } finally {
-            if (scpsite != null && !delaySessionClose) {
+            if (scpsite != null) {
                 scpsite.closeSession(logger, session, channel);
             }
         }
@@ -287,6 +289,7 @@ public final class SCPRepositoryPublisher extends Notifier {
 
         private final CopyOnWriteList<SCPSite> sites = new CopyOnWriteList<SCPSite>();
 
+        @Override
         public String getDisplayName() {
             return Messages.SCPRepositoryPublisher_DisplayName();
         }
@@ -343,26 +346,42 @@ public final class SCPRepositoryPublisher extends Notifier {
     private class consoleRunnable implements Runnable {
         private final AbstractBuild build;
         private final SCPSite scpsite;
-        private final Session session;
-        private final ChannelSftp channel;
-        private final BufferedWriter writer;
+        private final String path;
+        private final PrintStream logger;
+        private final Object syncObj;
 
-        consoleRunnable(AbstractBuild build, SCPSite scpsite, Session session,
-                        ChannelSftp channel, BufferedWriter writer) {
+        consoleRunnable(AbstractBuild build, SCPSite scpsite, String path, PrintStream logger, Object syncObj) {
             this.build = build;
             this.scpsite = scpsite;
-            this.session = session;
-            this.channel = channel;
-            this.writer = writer;
+            this.path = path;
+            this.logger = logger;
+            this.syncObj = syncObj;
         }
 
         public void run () {
             AnnotatedLargeText logText;
             final StringWriter strWriter;
-            strWriter = new StringWriter();
             long pos = 0;
+            Session session = null;
+            ChannelSftp channel = null;
+            OutputStream out = null;
+            BufferedWriter writer = null;
 
             try {
+                try {
+                    session = scpsite.createSession(logger);
+                    channel = scpsite.createChannel(logger, session);
+                    out = scpsite.createOutStream(path, "console.html", logger, channel);
+                } finally {
+                    // notify parent thread after creation of console log
+                    synchronized(syncObj)
+                    {
+                        syncObj.notify();
+                    }
+                }
+                writer = new BufferedWriter(new OutputStreamWriter(out));
+
+                strWriter = new StringWriter();
                 strWriter.write("<pre>\n");
                 do {
                     logText = build.getLogText();
@@ -386,9 +405,15 @@ public final class SCPRepositoryPublisher extends Notifier {
                 writer.flush();
                 writer.close();
             } catch (IOException e) {
-                //Ignore the error not much we can do about it.
+                LOGGER.info("Failed to upload console log: " + e.getMessage());
+            } catch (JSchException e) {
+                LOGGER.info("Failed to upload console log: " + e.getMessage());
+            } catch (SftpException e) {
+                LOGGER.info("Failed to upload console log: " + e.getMessage());
             } finally {
-                scpsite.closeSession(null, session, channel);
+                if (scpsite != null) {
+                    scpsite.closeSession(null, session, channel);
+                }
             }
         }
     }
