@@ -1,5 +1,15 @@
 package be.certipost.hudson.plugin;
 
+import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
+import com.cloudbees.plugins.credentials.CredentialsMatcher;
+import com.cloudbees.plugins.credentials.CredentialsMatchers;
+import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.common.StandardCredentials;
+import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
+import com.cloudbees.plugins.credentials.common.StandardUsernameCredentials;
+import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
+import com.cloudbees.plugins.credentials.domains.DomainRequirement;
+import com.cloudbees.plugins.credentials.domains.URIRequirementBuilder;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Util;
@@ -7,8 +17,11 @@ import hudson.model.AbstractDescribableImpl;
 import hudson.model.Computer;
 import hudson.model.Descriptor;
 import hudson.model.Hudson;
+import hudson.model.Item;
+import hudson.model.ItemGroup;
 import hudson.model.Node;
 import hudson.model.Hudson.MasterComputer;
+import hudson.security.ACL;
 import hudson.slaves.NodeProperty;
 import hudson.slaves.NodePropertyDescriptor;
 import hudson.util.DescribableList;
@@ -18,11 +31,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import hudson.util.FormValidation;
+import hudson.util.ListBoxModel;
 import org.apache.commons.lang.StringUtils;
 
 import com.jcraft.jsch.ChannelSftp;
@@ -32,6 +49,7 @@ import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
 import com.jcraft.jsch.UserInfo;
+import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.DataBoundConstructor;
 
@@ -43,18 +61,19 @@ import org.kohsuke.stapler.DataBoundConstructor;
 public class SCPSite extends AbstractDescribableImpl<SCPSite> {
     String displayname;
     String hostname;
-    int port;
+    String credentialsId;
+    StandardCredentials user;
     String username;
-    String password;
-    String keyfile;
+    int port;
     String rootRepositoryPath;
+
+    public static final List<DomainRequirement> NO_REQUIREMENTS = Collections.<DomainRequirement> emptyList();
 
     public static final Logger LOGGER = Logger.getLogger(SCPSite.class
             .getName());
 
     @DataBoundConstructor
-    public SCPSite(String displayname, String hostname, String port,
-                   String username, String password, String keyfile,
+    public SCPSite(String displayname, String hostname, String port, String credentialsId,
                    String rootRepositoryPath) {
         this.displayname = displayname;
         this.hostname = hostname;
@@ -63,20 +82,11 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
         } catch (Exception e) {
             this.port = 22;
         }
-        this.username = username;
-        this.password = password;
-        this.keyfile = keyfile;
+        this.credentialsId = credentialsId;
         if (rootRepositoryPath != null) {
             this.rootRepositoryPath = rootRepositoryPath.trim();
         }
-    }
-
-    public String getKeyfile() {
-        return keyfile;
-    }
-
-    public void setKeyfile(String keyfile) {
-        this.keyfile = keyfile;
+        setUser(credentialsId);
     }
 
     public String getDisplayname() {
@@ -95,6 +105,19 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
         this.hostname = hostname;
     }
 
+    public StandardCredentials getUser() {
+        return user;
+    }
+
+    public void setUser(String credentialsId) {
+        StandardCredentials user = CredentialsMatchers.firstOrNull(
+                CredentialsProvider.lookupCredentials(StandardCredentials.class, (Item) null, ACL.SYSTEM, NO_REQUIREMENTS),
+                CredentialsMatchers.allOf(CredentialsMatchers.withId(credentialsId),
+                        CredentialsMatchers.anyOf(CredentialsMatchers.instanceOf(StandardCredentials.class),
+                                CredentialsMatchers.instanceOf(SSHUserPrivateKey.class))));
+        this.user = user;
+    }
+
     public String getPort() {
         return "" + port;
     }
@@ -111,20 +134,9 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
         return port;
     }
 
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
+    @SuppressWarnings("unused") // by stapler
+    public String getCredentialsId() {
+        return credentialsId;
     }
 
     public String getRootRepositoryPath() {
@@ -145,24 +157,41 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
 
     public Session createSession(PrintStream logger) throws JSchException {
         JSch jsch = new JSch();
+        Session session = null;
 
-        Session session = jsch.getSession(username, hostname, port);
-        if (this.keyfile != null && this.keyfile.length() > 0) {
-            jsch.addIdentity(this.keyfile, this.password);
-        } else {
-            session.setPassword(password);
+        StandardCredentials user = getUser();
+
+        try {
+            if (user == null) {
+                String message = "Credentials with id '" + credentialsId + "', no longer exist!";
+                throw new InterruptedException(message);
+            }
+
+            if (user instanceof SSHUserPrivateKey) {
+                LOGGER.log(Level.FINER, "SSHUserPrivateKey used through credentialID {0}", credentialsId);
+                SSHUserPrivateKey userSsh = (SSHUserPrivateKey) user;
+                jsch.addIdentity(userSsh.getUsername(), userSsh.getPrivateKey().getBytes("UTF-8"), null, null);
+                session = jsch.getSession(userSsh.getUsername(), hostname, port);
+            } else if (user instanceof StandardUsernamePasswordCredentials) {
+                LOGGER.log(Level.FINER, "StandardUsernamePasswordCredentials used through credentialID {0}", credentialsId);
+                StandardUsernamePasswordCredentials userNamePassword = (StandardUsernamePasswordCredentials) user;
+                session = jsch.getSession(userNamePassword.getUsername(), hostname, port);
+                session.setPassword(userNamePassword.getPassword().getPlainText());
+                UserInfo ui = new SCPUserInfo(userNamePassword.getPassword().getPlainText());
+                session.setUserInfo(ui);
+            }
+
+            java.util.Properties config = new java.util.Properties();
+            config.put("StrictHostKeyChecking", "no");
+            session.setConfig(config);
+            session.connect();
+        } catch (UnsupportedEncodingException e) {
+            LOGGER.log(Level.WARNING, String.format("There was a problem getting your SSH private key"), e);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
 
-        UserInfo ui = new SCPUserInfo(password);
-        session.setUserInfo(ui);
-
-        java.util.Properties config = new java.util.Properties();
-        config.put("StrictHostKeyChecking", "no");
-        session.setConfig(config);
-        session.connect();
-
         return session;
-
     }
 
     public ChannelSftp createChannel(PrintStream logger, Session session)
@@ -387,6 +416,12 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
 
     @Extension
     public static class DescriptorImpl extends Descriptor<SCPSite> {
+
+        private CredentialsMatcher CREDENTIALS_MATCHER = CredentialsMatchers.anyOf(
+                CredentialsMatchers.instanceOf(StandardUsernameCredentials.class),
+                CredentialsMatchers.instanceOf(SSHUserPrivateKey.class)
+        );
+
         @Override
         public String getDisplayName() {
             return "";
@@ -404,22 +439,37 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
             return FormValidation.ok();
         }
 
-        public FormValidation doLoginCheck(@QueryParameter String hostname, @QueryParameter String port, @QueryParameter String username, @QueryParameter String password, @QueryParameter String keyfile) {
+        public FormValidation doLoginCheck(@QueryParameter String hostname, @QueryParameter String port, @QueryParameter String credentialsId) {
             hostname = Util.fixEmpty(hostname);
             if (hostname == null) {// hosts is not entered yet
                 return FormValidation.ok();
             }
-            SCPSite site = new SCPSite("", hostname, port, username, password, keyfile, "");
+            SCPSite site = new SCPSite("", hostname, port, credentialsId, "");
+
             try {
-                Session session = site.createSession(new PrintStream(
-                        System.out));
-                site.closeSession(new PrintStream(System.out), session,
-                        null);
+            Session session = site.createSession(new PrintStream(
+                    System.out));
+            site.closeSession(new PrintStream(System.out), session,
+                    null);
             } catch (JSchException e) {
                 LOGGER.log(Level.SEVERE, e.getMessage(), e);
                 return FormValidation.error(e,Messages.SCPRepositoryPublisher_NotConnect());
             }
             return FormValidation.ok("Success!");
+        }
+
+        public ListBoxModel doFillCredentialsIdItems(@AncestorInPath ItemGroup context, @QueryParameter String hostname) {
+            StandardListBoxModel result = new StandardListBoxModel();
+            result.withEmptySelection();
+            result.withMatching(CREDENTIALS_MATCHER,
+                    CredentialsProvider.lookupCredentials(
+                            StandardUsernameCredentials.class,
+                            context,
+                            ACL.SYSTEM,
+                            URIRequirementBuilder.create().withHostname(hostname).build()
+                    )
+            );
+            return result;
         }
     }
 }
