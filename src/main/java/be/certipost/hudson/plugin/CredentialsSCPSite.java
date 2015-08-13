@@ -1,15 +1,23 @@
 package be.certipost.hudson.plugin;
 
 import com.cloudbees.jenkins.plugins.sshcredentials.SSHUserPrivateKey;
+import com.cloudbees.jenkins.plugins.sshcredentials.impl.BasicSSHUserPrivateKey;
+import com.cloudbees.plugins.credentials.Credentials;
 import com.cloudbees.plugins.credentials.CredentialsMatcher;
 import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.CredentialsScope;
+import com.cloudbees.plugins.credentials.SystemCredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardCredentials;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.common.StandardUsernameCredentials;
 import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
+import com.cloudbees.plugins.credentials.domains.Domain;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
+import com.cloudbees.plugins.credentials.domains.HostnamePortRequirement;
 import com.cloudbees.plugins.credentials.domains.URIRequirementBuilder;
+import com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl;
+import com.google.common.base.Strings;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Util;
@@ -35,6 +43,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -58,7 +67,13 @@ import org.kohsuke.stapler.DataBoundConstructor;
  * @author Ramil Israfilov
  *
  */
-public class SCPSite extends AbstractDescribableImpl<SCPSite> {
+public class CredentialsSCPSite extends AbstractDescribableImpl<CredentialsSCPSite> {
+
+    public static class LegacySCPSite extends CredentialsSCPSite {
+        String password;
+        String keyfile;
+    }
+
     String displayname;
     String hostname;
     String credentialsId;
@@ -69,11 +84,14 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
 
     public static final List<DomainRequirement> NO_REQUIREMENTS = Collections.<DomainRequirement> emptyList();
 
-    public static final Logger LOGGER = Logger.getLogger(SCPSite.class
+    public static final Logger LOGGER = Logger.getLogger(CredentialsSCPSite.class
             .getName());
 
+    private CredentialsSCPSite() {
+    }
+
     @DataBoundConstructor
-    public SCPSite(String displayname, String hostname, String port, String credentialsId,
+    public CredentialsSCPSite(String displayname, String hostname, String port, String credentialsId,
                    String rootRepositoryPath) {
         this.displayname = displayname;
         this.hostname = hostname;
@@ -203,7 +221,7 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
     }
 
     public void closeSession(PrintStream logger, Session session,
-            ChannelSftp channel) {
+                             ChannelSftp channel) {
         if (channel != null) {
             channel.disconnect();
             channel = null;
@@ -216,21 +234,21 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
     }
 
     public OutputStream createOutStream(String folderPath, String fileName, PrintStream logger, ChannelSftp channel)
-        throws IOException, SftpException {
+            throws IOException, SftpException {
         if (channel == null) {
             throw new IOException("Connection to " + hostname + ", user="
-                                  + username + " is not established");
+                    + username + " is not established");
         }
 
         SftpATTRS rootdirstat = channel.stat(rootRepositoryPath);
         if (rootdirstat == null) {
             throw new IOException(
-                                  "Can't get stat of root repository directory:"
-                                  + rootRepositoryPath);
+                    "Can't get stat of root repository directory:"
+                            + rootRepositoryPath);
         } else {
             if (!rootdirstat.isDir()) {
                 throw new IOException(rootRepositoryPath
-                                      + " is not a directory");
+                        + " is not a directory");
             }
         }
 
@@ -241,7 +259,7 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
     }
 
     public void upload(String folderPath, FilePath filePath, boolean keepHierarchy,
-            Map<String, String> envVars, PrintStream logger, ChannelSftp channel)
+                       Map<String, String> envVars, PrintStream logger, ChannelSftp channel)
             throws IOException, InterruptedException, SftpException {
         // if ( session == null ||
         if (channel == null) {
@@ -331,7 +349,7 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
                 if (dirstat == null) {
                     // try to create dir
                     log(logger, "Trying to create " + curdir + "/"
-                        + pathnames[i]);
+                            + pathnames[i]);
                     try {
                         channel.mkdir(curdir + "/" + pathnames[i]);
                     } catch (SftpException e) {
@@ -344,7 +362,7 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
                 }
                 if (!dirstat.isDir()) {
                     throw new IOException(curdir + "/" + pathnames[i]
-                                          + " is not a directory:" + dirstat);
+                            + " is not a directory:" + dirstat);
                 }
                 curdir = curdir + "/" + pathnames[i];
             }
@@ -383,7 +401,7 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
      * @return
      */
     private String extractRelativePath(String strWorkspacePath,
-            FilePath filePath, PrintStream logger) {
+                                       FilePath filePath, PrintStream logger) {
         String strRet = "";
         String strFilePath = filePath.getParent().toString();
         if (strWorkspacePath.length() == strFilePath.length()) {
@@ -414,8 +432,57 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
         return nodeProperties;
     }
 
+    public static CredentialsSCPSite migrateToCredentials(CredentialsSCPSite site) throws InterruptedException,
+            IOException {
+        if (!(site instanceof LegacySCPSite)) {
+            return site;
+        }
+
+        final LegacySCPSite legacy = (LegacySCPSite) site;
+
+        final List<StandardUsernameCredentials> credentialsForDomain = CredentialsProvider.lookupCredentials(
+                StandardUsernameCredentials.class, (Item) null, ACL.SYSTEM, new HostnamePortRequirement(site.hostname,
+                        site.port));
+        final StandardUsernameCredentials existingCredentials = CredentialsMatchers.firstOrNull(credentialsForDomain,
+                CredentialsMatchers.withUsername(legacy.username));
+
+        final String credentialId;
+        if (existingCredentials == null) {
+            String createdCredentialId = UUID.randomUUID().toString();
+
+            final StandardUsernameCredentials credentialsToCreate;
+            if (!Strings.isNullOrEmpty(legacy.password)) {
+                credentialsToCreate = new UsernamePasswordCredentialsImpl(CredentialsScope.SYSTEM, createdCredentialId,
+                        "migrated from previous scp-plugin version", legacy.username, legacy.password);
+            } else if (!Strings.isNullOrEmpty(legacy.keyfile)) {
+                credentialsToCreate = new BasicSSHUserPrivateKey(CredentialsScope.SYSTEM, createdCredentialId,
+                        legacy.username, new BasicSSHUserPrivateKey.FileOnMasterPrivateKeySource(legacy.keyfile), null,
+                        "migrated from previous scp-plugin version");
+            } else {
+                throw new InterruptedException(
+                        "Did not find password nor keyfile while migrating from non-credentials SSH configuration!");
+            }
+
+            final SystemCredentialsProvider credentialsProvider = SystemCredentialsProvider.getInstance();
+            final Map<Domain, List<Credentials>> credentialsMap = credentialsProvider.getDomainCredentialsMap();
+
+            final Domain domain = Domain.global();
+            credentialsMap.put(domain, Collections.<Credentials> singletonList(credentialsToCreate));
+
+            credentialsProvider.setDomainCredentialsMap(credentialsMap);
+            credentialsProvider.save();
+
+            credentialId = createdCredentialId;
+        } else {
+            credentialId = existingCredentials.getId();
+        }
+
+        return new CredentialsSCPSite(legacy.hostname, legacy.hostname, String.valueOf(legacy.port),
+                credentialId, legacy.rootRepositoryPath);
+    }
+
     @Extension
-    public static class DescriptorImpl extends Descriptor<SCPSite> {
+    public static class DescriptorImpl extends Descriptor<CredentialsSCPSite> {
 
         private CredentialsMatcher CREDENTIALS_MATCHER = CredentialsMatchers.anyOf(
                 CredentialsMatchers.instanceOf(StandardUsernameCredentials.class),
@@ -444,13 +511,13 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
             if (hostname == null) {// hosts is not entered yet
                 return FormValidation.ok();
             }
-            SCPSite site = new SCPSite("", hostname, port, credentialsId, "");
+            CredentialsSCPSite site = new CredentialsSCPSite("", hostname, port, credentialsId, "");
 
             try {
-            Session session = site.createSession(new PrintStream(
-                    System.out));
-            site.closeSession(new PrintStream(System.out), session,
-                    null);
+                Session session = site.createSession(new PrintStream(
+                        System.out));
+                site.closeSession(new PrintStream(System.out), session,
+                        null);
             } catch (JSchException e) {
                 LOGGER.log(Level.SEVERE, e.getMessage(), e);
                 return FormValidation.error(e,Messages.SCPRepositoryPublisher_NotConnect());

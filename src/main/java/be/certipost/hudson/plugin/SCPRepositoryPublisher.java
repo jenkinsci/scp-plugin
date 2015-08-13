@@ -5,6 +5,7 @@ import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
 import hudson.Util;
+import hudson.XmlFile;
 import hudson.console.AnnotatedLargeText;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
@@ -34,6 +35,7 @@ import java.io.StringWriter;
 import java.io.PrintStream;
 import java.lang.Runnable;
 import java.lang.Thread;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +45,8 @@ import java.util.logging.Logger;
 import hudson.util.IOException2;
 import hudson.util.ListBoxModel;
 import hudson.util.ListBoxModel.Option;
+import hudson.util.XStream2;
+import jenkins.model.Jenkins;
 import net.sf.json.JSONObject;
 
 import org.apache.commons.lang.StringUtils;
@@ -75,7 +79,7 @@ public final class SCPRepositoryPublisher extends Notifier {
     public SCPRepositoryPublisher(String siteName, List<Entry> entries) {
         if (siteName == null) {
             // defaults to the first one
-            SCPSite[] sites = DESCRIPTOR.getSites();
+            CredentialsSCPSite[] sites = DESCRIPTOR.getSites();
             if (sites.length > 0) {
                 siteName = sites[0].getName();
             }
@@ -88,13 +92,13 @@ public final class SCPRepositoryPublisher extends Notifier {
         return entries;
     }
 
-    public SCPSite getSite() {
-        SCPSite[] sites = DESCRIPTOR.getSites();
+    public CredentialsSCPSite getSite() {
+        CredentialsSCPSite[] sites = DESCRIPTOR.getSites();
         if (siteName == null && sites.length > 0)
             // default
             return sites[0];
 
-        for (SCPSite site : sites) {
+        for (CredentialsSCPSite site : sites) {
             if (site.getName().equals(siteName))
                 return site;
         }
@@ -146,7 +150,7 @@ public final class SCPRepositoryPublisher extends Notifier {
 
         final Result cachedResult;
         cachedResult = build.getResult();
-        SCPSite scpsite = null;
+        CredentialsSCPSite scpsite = null;
         PrintStream logger = listener.getLogger();
         Session session = null;
         ChannelSftp channel = null;
@@ -287,7 +291,7 @@ public final class SCPRepositoryPublisher extends Notifier {
             super(clazz);
         }
 
-        private final CopyOnWriteList<SCPSite> sites = new CopyOnWriteList<SCPSite>();
+        private final CopyOnWriteList<CredentialsSCPSite> sites = new CopyOnWriteList<CredentialsSCPSite>();
 
         @Override
         public String getDisplayName() {
@@ -303,19 +307,55 @@ public final class SCPRepositoryPublisher extends Notifier {
             return true;
         }
 
-        public SCPSite[] getSites() {
-            Iterator<SCPSite> it = sites.iterator();
+        public CredentialsSCPSite[] getSites() {
+            Iterator<CredentialsSCPSite> it = sites.iterator();
             int size = 0;
             while (it.hasNext()) {
                 it.next();
                 size++;
             }
-            return sites.toArray(new SCPSite[size]);
+            return sites.toArray(new CredentialsSCPSite[size]);
+        }
+
+        public synchronized void load() {
+            final XStream2 xstream = new XStream2();
+            xstream.addCompatibilityAlias("be.certipost.hudson.plugin.SCPSite", CredentialsSCPSite.LegacySCPSite.class);
+
+            final XmlFile file = new XmlFile(xstream, new File(Jenkins.getInstance().getRootDir(), getId() + ".xml"));
+            if (!file.exists()) {
+                return;
+            }
+
+            try {
+                file.unmarshal(this);
+            } catch (IOException e) {
+                LOGGER.log(Level.WARNING, "Failed to load " + file, e);
+            }
+
+            boolean madeChanges = false;
+            final List<CredentialsSCPSite> migratedCredentials = new ArrayList<CredentialsSCPSite>(sites.size());
+            for (CredentialsSCPSite site : sites) {
+                try {
+                    final CredentialsSCPSite migrated = CredentialsSCPSite.migrateToCredentials(site);
+                    migratedCredentials.add(migrated);
+
+                    madeChanges = madeChanges || (migrated != site);
+                } catch (InterruptedException e) {
+                    throw new IllegalStateException("Failed to migrate site: " + site, e);
+                } catch (IOException e) {
+                    throw new IllegalStateException("Failed to migrate site: " + site, e);
+                }
+            }
+
+            if (madeChanges) {
+                sites.replaceBy(migratedCredentials);
+                save();
+            }
         }
 
         @Override
         public boolean configure(StaplerRequest req, JSONObject formData) {
-            sites.replaceBy(req.bindJSONToList(SCPSite.class,
+            sites.replaceBy(req.bindJSONToList(CredentialsSCPSite.class,
                                                formData.get("sites")));
             save();
             return true;
@@ -323,7 +363,7 @@ public final class SCPRepositoryPublisher extends Notifier {
 
         public ListBoxModel doFillSiteNameItems() {
             ListBoxModel model = new ListBoxModel();
-            for (SCPSite site : getSites()) {
+            for (CredentialsSCPSite site : getSites()) {
                 model.add(site.getName());
             }
             return model;
@@ -345,12 +385,12 @@ public final class SCPRepositoryPublisher extends Notifier {
 
     private class consoleRunnable implements Runnable {
         private final AbstractBuild build;
-        private final SCPSite scpsite;
+        private final CredentialsSCPSite scpsite;
         private final String path;
         private final PrintStream logger;
         private final Object syncObj;
 
-        consoleRunnable(AbstractBuild build, SCPSite scpsite, String path, PrintStream logger, Object syncObj) {
+        consoleRunnable(AbstractBuild build, CredentialsSCPSite scpsite, String path, PrintStream logger, Object syncObj) {
             this.build = build;
             this.scpsite = scpsite;
             this.path = path;
