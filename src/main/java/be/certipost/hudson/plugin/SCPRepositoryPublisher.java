@@ -169,17 +169,22 @@ public final class SCPRepositoryPublisher extends Notifier {
             }
             // ~ Patched for env vars
 
-            // check whether scp is configured to copy console log
+            // check whether scp is configured to copy console log, and whether
+            // same entry also copies sources to control session creation below
+            boolean copySource = false;
             boolean copyLog = false;
             for (Entry e : entries) {
                 if (e.copyConsoleLog) {
                     copyLog = true;
+                    if (e.sourceFile != null && !e.sourceFile.isEmpty()) {
+                        copySource = true;
+                    }
                     break;
                 }
             }
             // create this session only if scp is configured to upload more than just
             // the console log.  the console log upload requires a seperate session
-            if (!(entries.size() == 1 && copyLog)) {
+            if (!(entries.size() == 1 && copyLog && !copySource)) {
                 log(logger, "Connecting to " + scpsite.getHostname());
                 session = scpsite.createSession(logger);
                 channel = scpsite.createChannel(logger, session);
@@ -207,47 +212,49 @@ public final class SCPRepositoryPublisher extends Notifier {
                     {
                         syncObj.wait();
                     }
-                    continue;
-                }
-                // copy files other than console log
-                String expanded = Util.replaceMacro(e.sourceFile, envVars);
-                FilePath ws = build.getWorkspace();
-                if (ws == null) {
-                    log(logger, "No workspace found, files cannot be copied. " +
-                        "Probably an error communicating with slave.");
-                    continue;
                 }
 
-                FilePath[] src = ws.list(expanded);
-                if (src.length == 0) {
-                    // try to do error diagnostics
-                    log(logger, ("No file(s) found: " + expanded));
-                    String error = ws.validateAntFileMask(expanded);
-                    if (error != null)
-                        log(logger, error);
-                    continue;
-                }
+                if (e.sourceFile != null && !e.sourceFile.isEmpty()) {
+                    // copy files other than console log
+                    String expanded = Util.replaceMacro(e.sourceFile, envVars);
+                    FilePath ws = build.getWorkspace();
+                    if (ws == null) {
+                        log(logger, "No workspace found, files cannot be copied. " +
+                            "Probably an error communicating with slave.");
+                        continue;
+                    }
 
-                // Making workspace to have the same path separators like in the
-                // FilePath objects
-                String strWorkspacePath = ws.toString();
+                    FilePath[] src = ws.list(expanded);
+                    if (src.length == 0) {
+                        // try to do error diagnostics
+                        log(logger, ("No file(s) found: " + expanded));
+                        String error = ws.validateAntFileMask(expanded);
+                        if (error != null)
+                            log(logger, error);
+                        continue;
+                    }
 
-                String strFirstFile = src[0].toString();
-                if (strFirstFile.indexOf('\\') >= 0) {
-                    strWorkspacePath = strWorkspacePath.replace('/', '\\');
-                } else {
-                    strWorkspacePath = strWorkspacePath.replace('\\', '/');
-                    // Unix
-                }
+                    // Making workspace to have the same path separators like in the
+                    // FilePath objects
+                    String strWorkspacePath = ws.toString();
 
-                envVars.put("strWorkspacePath", strWorkspacePath);
-                // ~Fix for recursive mkdirs
+                    String strFirstFile = src[0].toString();
+                    if (strFirstFile.indexOf('\\') >= 0) {
+                        strWorkspacePath = strWorkspacePath.replace('/', '\\');
+                    } else {
+                        strWorkspacePath = strWorkspacePath.replace('\\', '/');
+                        // Unix
+                    }
 
-                if (src.length == 1) {
-                    scpsite.upload(folderPath, src[0], e.keepHierarchy, envVars, logger, channel);
-                } else {
-                    for (FilePath s : src) {
-                        scpsite.upload(folderPath, s, e.keepHierarchy, envVars, logger, channel);
+                    envVars.put("strWorkspacePath", strWorkspacePath);
+                    // ~Fix for recursive mkdirs
+
+                    if (src.length == 1) {
+                        scpsite.upload(folderPath, src[0], e.keepHierarchy, envVars, logger, channel);
+                    } else {
+                        for (FilePath s : src) {
+                            scpsite.upload(folderPath, s, e.keepHierarchy, envVars, logger, channel);
+                        }
                     }
                 }
             }
