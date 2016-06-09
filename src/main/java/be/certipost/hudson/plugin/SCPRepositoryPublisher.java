@@ -313,10 +313,13 @@ public final class SCPRepositoryPublisher extends Notifier {
             return sites.toArray(new SCPSite[size]);
         }
 
+        public void setSites(List<SCPSite> newSites) {
+            sites.replaceBy(newSites);
+        }
+
         @Override
         public boolean configure(StaplerRequest req, JSONObject formData) {
-            sites.replaceBy(req.bindJSONToList(SCPSite.class,
-                                               formData.get("sites")));
+            setSites(req.bindJSONToList(SCPSite.class, formData.get("sites")));
             save();
             return true;
         }
