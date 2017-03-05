@@ -240,7 +240,9 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
             }
         } else {
             String localfilename = filePath.getName();
-            mkdirs(folderPath, logger, channel);
+            if (!folderPath.contains(".") && folderPath.endsWith("/")){
+                mkdirs(folderPath, logger, channel);
+            }
 
             String strNewFilename;
             if (keepHierarchy) {
@@ -262,7 +264,11 @@ public class SCPSite extends AbstractDescribableImpl<SCPSite> {
 
                 strNewFilename = strNewPath + localfilename;
             } else {
-                String strTmp = concatDir(folderPath, localfilename);
+                
+                String strTmp = folderPath;
+                if (!folderPath.contains(".") && folderPath.endsWith("/")){
+                    strTmp = concatDir(folderPath, localfilename);
+                }
                 strNewFilename = concatDir(rootRepositoryPath, strTmp);
             }
 
