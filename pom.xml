@@ -52,9 +52,9 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.jcraft</groupId>
+      <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>jsch</artifactId>
-      <version>0.1.50</version>
+      <version>0.1.55.2</version>
     </dependency>
   </dependencies>
 
