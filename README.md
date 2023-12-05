@@ -10,8 +10,8 @@ The `scp` command is available on all the operating systems that Jenkins support
 Unix variants include `scp` with the OpenSSH commands.
 Windows includes `scp` with their port of OpenSSH.
 
-The plugin was last released in January 2011.
-The last commit with any change to the plugin source code was in January 2014.
+The plugin was last released in [January 2011](https://github.com/jenkinsci/scp-plugin/releases/tag/scp-1.8).
+The last commit with any change to the plugin source code was in [January 2014](https://github.com/jenkinsci/scp-plugin/pull/8).
 
 The last successful build on ci.jenkins.io was in September 2020.
 The plugin does not build currently.
